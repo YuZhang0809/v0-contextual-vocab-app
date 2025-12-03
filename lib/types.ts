@@ -7,7 +7,8 @@ export interface WordCard {
   word: string
   sentence: string
   meaning_cn: string
-  mnemonics: string
+  mnemonics?: string
+  sentence_translation?: string
   review_status: CardStatus
   interval: number // 当前间隔天数
   repetition: number // 连续正确次数

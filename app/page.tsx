@@ -5,13 +5,18 @@ import { AppHeader } from "@/components/app-header"
 import { Dashboard } from "@/components/dashboard"
 import { CaptureForm } from "@/components/capture-form"
 import { ReviewSession } from "@/components/review-session"
+import { LoginForm } from "@/components/auth/login-form"
+import { YouTubeSession } from "@/components/youtube-session"
 import { useDueCards } from "@/hooks/use-cards"
+import { useAuth } from "@/hooks/use-auth"
+import { Loader2 } from "lucide-react"
 
-type View = "dashboard" | "capture" | "review"
+type View = "dashboard" | "capture" | "review" | "youtube"
 
 export default function HomePage() {
   const [currentView, setCurrentView] = useState<View>("dashboard")
   const { dueCards } = useDueCards()
+  const { user, loading: authLoading } = useAuth()
 
   const handleStartReview = () => {
     if (dueCards.length > 0) {
@@ -23,6 +28,21 @@ export default function HomePage() {
     setCurrentView("dashboard")
   }
 
+  // 认证加载中
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  // 未登录，显示登录页
+  if (!user) {
+    return <LoginForm />
+  }
+
+  // 已登录，显示主应用
   return (
     <div className="min-h-screen bg-background">
       {currentView !== "review" && (
@@ -36,6 +56,7 @@ export default function HomePage() {
             <CaptureForm />
           </div>
         )}
+        {currentView === "youtube" && <YouTubeSession />}
         {currentView === "review" && <ReviewSession onExit={handleExitReview} />}
       </main>
     </div>

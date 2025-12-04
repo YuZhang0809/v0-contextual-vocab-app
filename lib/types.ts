@@ -4,6 +4,7 @@ export type CardStatus = "new" | "learning" | "review" | "graduated"
 
 export interface WordCard {
   id: string
+  user_id: string // 用户 ID (Supabase auth.users.id)
   word: string
   sentence: string
   meaning_cn: string

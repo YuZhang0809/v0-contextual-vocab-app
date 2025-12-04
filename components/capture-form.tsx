@@ -20,6 +20,11 @@ interface AnalysisItem {
 interface AnalysisResult {
   is_sentence: boolean
   sentence_translation?: string
+  sentence_analysis?: {
+    grammar: string
+    nuance: string
+    cultural_background?: string
+  }
   items: AnalysisItem[]
 }
 
@@ -272,12 +277,37 @@ export function CaptureForm() {
                 ({analysisResult?.is_sentence ? "句子模式" : "单词模式"})
               </span>
             </h3>
-            {analysisResult?.sentence_translation && (
-              <span className="text-sm text-muted-foreground bg-secondary/50 px-3 py-1 rounded-full">
-                 {analysisResult.sentence_translation}
-              </span>
-            )}
           </div>
+
+          {analysisResult?.is_sentence && (
+            <div className="bg-muted/30 p-4 rounded-lg space-y-4 border border-border/50">
+              {analysisResult.sentence_translation && (
+                <div className="space-y-1">
+                  <h4 className="text-sm font-medium text-muted-foreground">中文翻译</h4>
+                  <p className="text-lg font-serif">{analysisResult.sentence_translation}</p>
+                </div>
+              )}
+              
+              {analysisResult.sentence_analysis && (
+                <div className="grid gap-4 sm:grid-cols-2 text-sm">
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">语法分析</h4>
+                    <p className="leading-relaxed text-muted-foreground/90">{analysisResult.sentence_analysis.grammar}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">深度解读</h4>
+                    <p className="leading-relaxed text-muted-foreground/90">{analysisResult.sentence_analysis.nuance}</p>
+                  </div>
+                  {analysisResult.sentence_analysis.cultural_background && (
+                    <div className="space-y-1 sm:col-span-2 border-t border-border/50 pt-3">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">背景知识</h4>
+                      <p className="leading-relaxed text-muted-foreground/90">{analysisResult.sentence_analysis.cultural_background}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid gap-4">
             {editedItems.map((item, index) => (

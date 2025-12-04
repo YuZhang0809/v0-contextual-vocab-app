@@ -6,6 +6,11 @@ import { z } from "zod"
 const analysisSchema = z.object({
   is_sentence: z.boolean().describe("True if the input is a complete sentence, false if it is a word or phrase"),
   sentence_translation: z.string().optional().describe("Full sentence translation if the input is a sentence"),
+  sentence_analysis: z.object({
+    grammar: z.string().describe("Detailed grammatical analysis (in Chinese)"),
+    nuance: z.string().describe("Explanation of meaning and nuance (in Chinese)"),
+    cultural_background: z.string().optional().describe("Cultural background or context (in Chinese, optional)")
+  }).optional().describe("Detailed analysis for complete sentences"),
   items: z.array(
     z.object({
       term: z.string().describe("The target word or phrase (Lemma/Base form)"),
@@ -30,7 +35,7 @@ export async function POST(req: Request) {
   if (focus_term) {
     // Mode: Specific Lookup (Assistive Mode)
     // User wants to know the meaning of 'focus_term', possibly within 'text' (context)
-    prompt = `You are an expert English language tutor. 
+    prompt = `You are an expert English language tutor with deep understanding of nuance, idioms, and cultural context.
     
 Task: Explain the meaning of the specific term "${focus_term}".
 
@@ -45,10 +50,15 @@ Requirements:
    - 'meaning': concise Chinese meaning (max 15 chars).
    - 'example_sentence': the provided context (if valid) or the generated sentence.
    - 'sentence_translation': optional.
+
+**翻译质量要求**:
+- 翻译必须准确传达原文的真实含义和语境，不要死板地逐字翻译
+- 如遇俚语、习语、隐喻，需解释其深层含义而非字面翻译
+- 如果句子有文化背景或双关语，请在翻译中体现其真正意图
 `
   } else {
     // Mode: General Analysis (Original Logic)
-    prompt = `You are an expert English language tutor. Analyze the user's input.
+    prompt = `You are an expert English language tutor with deep understanding of nuance, idioms, and cultural context. Analyze the user's input.
 
 User Input: "${text}"
 
@@ -63,10 +73,21 @@ Logic:
    - Extract them as 'items'.
    - 'example_sentence' must be the original user input sentence for all items.
    - Provide the full sentence translation.
+   - **Fill 'sentence_analysis'**:
+     - 'grammar': Analyze key grammatical structures or difficult syntax.
+     - 'nuance': Explain the tone, connotation, or why specific words were chosen.
+     - 'cultural_background': Provide any relevant cultural context or background info (optional).
+
+**翻译质量要求**:
+- 翻译必须准确传达原文的真实含义和语境，不要死板地逐字翻译
+- 如遇俚语、习语、隐喻，需解释其深层含义而非字面翻译
+- 如果句子有文化背景或双关语，请在翻译中体现其真正意图
+- sentence_translation 应该是通顺自然的中文，而非翻译腔
+- sentence_analysis 中的解析也要用中文
 
 Constraints:
 - NO mnemonics.
-- Meaning must be concise (Chinese).
+- Meaning must be concise (Chinese, max 15 chars).
 - 'context_segment' should be the exact text from the sentence.
 `
   }

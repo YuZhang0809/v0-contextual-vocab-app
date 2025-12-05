@@ -1,10 +1,10 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { BookOpen, Plus, LayoutDashboard, LogOut, Youtube } from "lucide-react"
+import { BookOpen, Plus, LayoutDashboard, LogOut, Youtube, Calendar } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 
-type View = "dashboard" | "capture" | "review" | "youtube" | "vocabulary"
+type View = "dashboard" | "capture" | "review" | "youtube" | "vocabulary" | "history"
 
 interface AppHeaderProps {
   currentView: View
@@ -67,6 +67,15 @@ export function AppHeader({ currentView, onViewChange, dueCount }: AppHeaderProp
           >
             <Youtube className="h-4 w-4" />
             <span className="hidden sm:inline">YouTube</span>
+          </Button>
+          <Button
+            variant={currentView === "history" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => onViewChange("history")}
+            className="gap-2"
+          >
+            <Calendar className="h-4 w-4" />
+            <span className="hidden sm:inline">学习记录</span>
           </Button>
           
           {/* 用户信息和登出 */}

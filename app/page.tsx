@@ -8,11 +8,12 @@ import { ReviewSession } from "@/components/review-session"
 import { LoginForm } from "@/components/auth/login-form"
 import { YouTubeSession } from "@/components/youtube-session"
 import { VocabularyList } from "@/components/vocabulary-list"
+import { LearningHistory } from "@/components/learning-history"
 import { useDueContexts } from "@/hooks/use-cards"
 import { useAuth } from "@/hooks/use-auth"
 import { Loader2 } from "lucide-react"
 
-type View = "dashboard" | "capture" | "review" | "youtube" | "vocabulary"
+type View = "dashboard" | "capture" | "review" | "youtube" | "vocabulary" | "history"
 
 export default function HomePage() {
   const [currentView, setCurrentView] = useState<View>("dashboard")
@@ -59,6 +60,7 @@ export default function HomePage() {
         )}
         {currentView === "vocabulary" && <VocabularyList />}
         {currentView === "youtube" && <YouTubeSession />}
+        {currentView === "history" && <LearningHistory />}
         {currentView === "review" && <ReviewSession onExit={handleExitReview} />}
       </main>
     </div>

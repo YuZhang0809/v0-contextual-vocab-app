@@ -16,6 +16,9 @@ import {
   Calendar,
   Layers,
   X,
+  Youtube,
+  ExternalLink,
+  Clock,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -35,7 +38,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useCards } from "@/hooks/use-cards"
-import type { WordCard, CardStatus } from "@/lib/types"
+import type { WordCard, CardStatus, SourceType } from "@/lib/types"
+import { isVideoSource, getYouTubeLink } from "@/lib/types"
 import { formatDistanceToNow } from "date-fns"
 import { zhCN } from "date-fns/locale"
 
@@ -120,11 +124,22 @@ export function VocabularyList() {
     }
   }
 
-  const getSourceLabel = (source?: string) => {
+  const getSourceLabel = (source?: SourceType): string => {
     if (!source) return "手动"
-    if (source.startsWith("youtube:")) return "YouTube"
-    if (source === "capture") return "智能录入"
-    return source
+    if (isVideoSource(source)) return "YouTube"
+    if (typeof source === 'string') {
+      if (source.startsWith("youtube:")) return "YouTube"
+      if (source === "capture") return "智能录入"
+      return source
+    }
+    return "未知"
+  }
+
+  // 格式化时间戳为 MM:SS 格式
+  const formatTimestamp = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${String(secs).padStart(2, '0')}`
   }
 
   return (
@@ -282,19 +297,50 @@ export function VocabularyList() {
                             "bg-blue-500"
                           }`} />
                           
-                          {/* Context header */}
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Badge variant="secondary" className="text-xs">
-                                {context.meaning_cn}
-                              </Badge>
-                              <Badge className={`text-[10px] ${getStatusColor(context.review_status)}`}>
-                                {getStatusLabel(context.review_status)}
-                              </Badge>
-                              <Badge variant="outline" className="text-[10px]">
-                                {getSourceLabel(context.source)}
-                              </Badge>
-                            </div>
+{/* Context header */}
+                                          <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <Badge variant="secondary" className="text-xs">
+                                                {context.meaning_cn}
+                                              </Badge>
+                                              <Badge className={`text-[10px] ${getStatusColor(context.review_status)}`}>
+                                                {getStatusLabel(context.review_status)}
+                                              </Badge>
+                                              {/* 来源标签 - 如果是 YouTube，显示可点击的链接 */}
+                                              {(() => {
+                                                const youtubeLink = getYouTubeLink(context.source)
+                                                if (youtubeLink) {
+                                                  return (
+                                                    <a 
+                                                      href={youtubeLink}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      className="inline-flex"
+                                                    >
+                                                      <Badge 
+                                                        variant="outline" 
+                                                        className="text-[10px] gap-1 cursor-pointer hover:bg-red-500/10 hover:text-red-600 hover:border-red-500/30 transition-colors"
+                                                      >
+                                                        <Youtube className="h-3 w-3" />
+                                                        YouTube
+                                                        {isVideoSource(context.source) && (
+                                                          <span className="flex items-center gap-0.5">
+                                                            <Clock className="h-2.5 w-2.5" />
+                                                            {formatTimestamp(context.source.timestamp)}
+                                                          </span>
+                                                        )}
+                                                        <ExternalLink className="h-2.5 w-2.5" />
+                                                      </Badge>
+                                                    </a>
+                                                  )
+                                                }
+                                                return (
+                                                  <Badge variant="outline" className="text-[10px]">
+                                                    {getSourceLabel(context.source)}
+                                                  </Badge>
+                                                )
+                                              })()}
+                                            </div>
                             <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"

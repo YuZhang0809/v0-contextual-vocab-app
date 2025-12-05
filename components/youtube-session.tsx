@@ -1,19 +1,22 @@
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { VideoPlayer } from '@/components/youtube/video-player';
 import { TranscriptView } from '@/components/youtube/transcript-view';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, Search, Youtube, Plus, Check, X, Layers } from 'lucide-react';
+import { Loader2, Search, Youtube, Plus, Check, X, Layers, Languages, Eye, EyeOff } from 'lucide-react';
 import { useCards } from '@/hooks/use-cards';
+import { createWatchSession, updateWatchSession, fetchVideoMetadata } from '@/hooks/use-watch-sessions';
+import { WatchSession, VideoSource } from '@/lib/types';
 
 interface TranscriptSegment {
   text: string;
   offset: number;
   duration: number;
+  translation?: string;  // 中文翻译
 }
 
 interface AnalysisItem {
@@ -45,6 +48,20 @@ export function YouTubeSession() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisItem | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   
+  // Translation State
+  const [translating, setTranslating] = useState(false);
+  const [hasTranslation, setHasTranslation] = useState(false);
+  const [showTranslation, setShowTranslation] = useState(false);
+  
+  // Watch Session State (视频归档)
+  const [watchSession, setWatchSession] = useState<WatchSession | null>(null);
+  const [videoMetadata, setVideoMetadata] = useState<{
+    title?: string;
+    channel_name?: string;
+    thumbnail_url?: string;
+  } | null>(null);
+  const wordsSavedRef = useRef(0); // 追踪本次保存的单词数
+  
   const { addCard } = useCards();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(null);
 
@@ -64,27 +81,102 @@ export function YouTubeSession() {
     setVideoId(id);
     setLoading(true);
     setTranscript([]);
+    setHasTranslation(false);
+    setShowTranslation(false);
+    setWatchSession(null);
+    setVideoMetadata(null);
+    wordsSavedRef.current = 0;
     
     try {
-        const res = await fetch('/api/youtube/transcript', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
-        });
+        // 并行获取字幕和视频元数据
+        const [transcriptRes, metadata] = await Promise.all([
+            fetch('/api/youtube/transcript', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            }),
+            fetchVideoMetadata(id).catch(err => {
+                console.warn('Failed to fetch metadata:', err);
+                return null;
+            })
+        ]);
         
-        if (!res.ok) {
-            const errorData = await res.json();
+        if (!transcriptRes.ok) {
+            const errorData = await transcriptRes.json();
             throw new Error(errorData.details || errorData.error || "Failed to load transcript");
         }
         
-        const data = await res.json();
-        setTranscript(data.transcript);
+        const transcriptData = await transcriptRes.json();
+        setTranscript(transcriptData.transcript);
+        
+        // 保存视频元数据（延迟创建会话：只有保存单词时才创建）
+        if (metadata) {
+            setVideoMetadata({
+                title: metadata.title,
+                channel_name: metadata.channel_name,
+                thumbnail_url: metadata.thumbnail_url,
+            });
+        }
+        
+        // 注意：不在此处创建 watch_session
+        // 只有用户实际保存单词时才创建，避免产生"0 词"的无效记录
+        
     } catch (e) {
         console.error(e);
         const errorMessage = e instanceof Error ? e.message : "Could not load subtitles.";
         alert(errorMessage);
     } finally {
         setLoading(false);
+    }
+  };
+  
+  // 离开页面时更新会话结束时间
+  useEffect(() => {
+    return () => {
+      if (watchSession) {
+        updateWatchSession({
+          session_id: watchSession.id,
+          ended_at: Date.now(),
+          words_saved: wordsSavedRef.current,
+        }).catch(console.error);
+      }
+    };
+  }, [watchSession]);
+
+  const handleTranslate = async () => {
+    if (transcript.length === 0 || translating) return;
+    
+    setTranslating(true);
+    
+    try {
+        const res = await fetch('/api/youtube/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ segments: transcript })
+        });
+        
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.details || errorData.error || "Translation failed");
+        }
+        
+        const data = await res.json();
+        
+        // 将翻译合并到 transcript 中
+        const updatedTranscript = transcript.map((seg, index) => ({
+            ...seg,
+            translation: data.translations[index] || "[翻译缺失]"
+        }));
+        
+        setTranscript(updatedTranscript);
+        setHasTranslation(true);
+        setShowTranslation(true);
+    } catch (e) {
+        console.error(e);
+        const errorMessage = e instanceof Error ? e.message : "翻译失败，请重试";
+        alert(errorMessage);
+    } finally {
+        setTranslating(false);
     }
   };
 
@@ -127,19 +219,59 @@ export function YouTubeSession() {
   const handleSaveCard = async () => {
       if (!analysisResult || !videoId) return;
       
+      let currentSession = watchSession;
+      
+      // 延迟创建会话：只有在第一次保存单词时才创建
+      if (!currentSession) {
+        try {
+          currentSession = await createWatchSession({
+            video_id: videoId,
+            video_title: videoMetadata?.title,
+            channel_name: videoMetadata?.channel_name,
+            thumbnail_url: videoMetadata?.thumbnail_url,
+          });
+          setWatchSession(currentSession);
+          console.log('Watch session created on first save:', currentSession.id);
+        } catch (sessionErr) {
+          console.warn('Failed to create watch session:', sessionErr);
+          // 会话创建失败不影响保存单词
+        }
+      }
+      
+      // 构建来源：如果有会话，使用详细的 VideoSource 格式
+      const source: VideoSource | string = currentSession
+        ? {
+            type: "youtube",
+            session_id: currentSession.id,
+            video_id: videoId,
+            timestamp: Math.floor(currentTime), // 当前播放时间（秒）
+          }
+        : `youtube:${videoId}`; // 兼容：无会话时使用简单格式
+      
       try {
           const result = await addCard({
               word: analysisResult.term,
               sentence: analysisResult.example_sentence,
               meaning_cn: analysisResult.meaning,
-              sentence_translation: analysisResult.example_sentence_translation,  // 传递翻译
-              source: `youtube:${videoId}`,
+              sentence_translation: analysisResult.example_sentence_translation,
+              source,
           });
           
           if (result.isNew) {
             setSaveStatus({ type: "new" });
           } else {
             setSaveStatus({ type: "appended", contextCount: result.card.contexts?.length || 1 });
+          }
+          
+          // 更新保存计数
+          wordsSavedRef.current += 1;
+          
+          // 异步更新会话的 words_saved（不阻塞 UI）
+          if (currentSession) {
+            updateWatchSession({
+              session_id: currentSession.id,
+              words_saved: wordsSavedRef.current,
+            }).catch(console.error);
           }
           
           setTimeout(() => {
@@ -154,6 +286,14 @@ export function YouTubeSession() {
   const handleCloseAnalysis = () => {
       setShowAnalysis(false);
       if (player) player.playVideo();
+  };
+
+  // 跳转到指定时间点
+  const handleSeek = (timeInSeconds: number) => {
+      if (player) {
+          player.seekTo(timeInSeconds, true);
+          player.playVideo();
+      }
   };
 
   return (
@@ -185,9 +325,33 @@ export function YouTubeSession() {
             {/* Left: Video Player */}
             <div className="lg:col-span-2 flex flex-col gap-4">
                  <div className="flex items-center justify-between">
-                    <Button variant="ghost" size="sm" onClick={() => setVideoId(null)}>
+                    <Button variant="ghost" size="sm" onClick={() => {
+                        // 离开时更新会话
+                        if (watchSession) {
+                          updateWatchSession({
+                            session_id: watchSession.id,
+                            ended_at: Date.now(),
+                            words_saved: wordsSavedRef.current,
+                          }).catch(console.error);
+                        }
+                        setVideoId(null);
+                    }}>
                         &larr; 返回搜索
                     </Button>
+                    {/* 显示视频元数据 */}
+                    {videoMetadata && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span className="truncate max-w-[300px]" title={videoMetadata.title}>
+                          {videoMetadata.title}
+                        </span>
+                        {videoMetadata.channel_name && (
+                          <>
+                            <span>·</span>
+                            <span>{videoMetadata.channel_name}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
                  </div>
                  <VideoPlayer 
                     videoId={videoId} 
@@ -196,24 +360,80 @@ export function YouTubeSession() {
                  />
                  <Card className="bg-card/50 border-border/50">
                      <CardContent className="p-4">
-                         <h3 className="font-semibold mb-2">学习提示</h3>
-                         <p className="text-sm text-muted-foreground">
-                             视频播放时，右侧字幕会同步滚动。遇到生词，直接点击字幕中的单词，视频会自动暂停并为您解析。
-                         </p>
+                         <div className="flex items-center justify-between">
+                           <div>
+                             <h3 className="font-semibold mb-2">学习提示</h3>
+                             <p className="text-sm text-muted-foreground">
+                                 视频播放时，右侧字幕会同步滚动。遇到生词，直接点击字幕中的单词，视频会自动暂停并为您解析。
+                             </p>
+                           </div>
+                           {/* 显示本次学习统计 */}
+                           {wordsSavedRef.current > 0 && (
+                             <Badge variant="secondary" className="ml-4 shrink-0">
+                               已保存 {wordsSavedRef.current} 词
+                             </Badge>
+                           )}
+                         </div>
                      </CardContent>
                  </Card>
             </div>
 
-            {/* Right: Transcript */}
-            <div className="lg:col-span-1 h-full overflow-hidden flex flex-col relative">
-                <h3 className="font-bold mb-2 flex items-center gap-2">
-                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-sm">CC</span>
-                    字幕原文
-                </h3>
+{/* Right: Transcript */}
+                <div className="lg:col-span-1 h-full overflow-hidden flex flex-col relative">
+                <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-bold flex items-center gap-2">
+                        <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-sm">CC</span>
+                        字幕原文
+                    </h3>
+                    <div className="flex items-center gap-1">
+                        {!hasTranslation ? (
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={handleTranslate}
+                                disabled={translating || transcript.length === 0}
+                                className="gap-1 text-xs"
+                            >
+                                {translating ? (
+                                    <>
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        翻译中...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Languages className="h-3 w-3" />
+                                        翻译字幕
+                                    </>
+                                )}
+                            </Button>
+                        ) : (
+                            <Button 
+                                variant={showTranslation ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setShowTranslation(!showTranslation)}
+                                className="gap-1 text-xs"
+                            >
+                                {showTranslation ? (
+                                    <>
+                                        <EyeOff className="h-3 w-3" />
+                                        隐藏翻译
+                                    </>
+                                ) : (
+                                    <>
+                                        <Eye className="h-3 w-3" />
+                                        显示翻译
+                                    </>
+                                )}
+                            </Button>
+                        )}
+                    </div>
+                </div>
                 <TranscriptView 
                     transcript={transcript} 
                     currentTime={currentTime}
                     onWordClick={handleWordClick}
+                    onSeek={handleSeek}
+                    showTranslation={showTranslation}
                 />
 
                 {/* Analysis Overlay / Modal */}

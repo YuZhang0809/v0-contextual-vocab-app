@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { BookOpen, Plus, LayoutDashboard, LogOut, Youtube } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 
-type View = "dashboard" | "capture" | "review" | "youtube"
+type View = "dashboard" | "capture" | "review" | "youtube" | "vocabulary"
 
 interface AppHeaderProps {
   currentView: View
@@ -40,6 +40,15 @@ export function AppHeader({ currentView, onViewChange, dueCount }: AppHeaderProp
             {dueCount > 0 && currentView !== "dashboard" && (
               <span className="bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded-full">{dueCount}</span>
             )}
+          </Button>
+          <Button
+            variant={currentView === "vocabulary" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => onViewChange("vocabulary")}
+            className="gap-2"
+          >
+            <BookOpen className="h-4 w-4" />
+            <span className="hidden sm:inline">生词本</span>
           </Button>
           <Button
             variant={currentView === "capture" ? "secondary" : "ghost"}

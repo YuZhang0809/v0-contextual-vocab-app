@@ -9,53 +9,54 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { BookOpen, Layers, CheckCircle2, ArrowLeft } from "lucide-react"
-import { useCards, useDueCards } from "@/hooks/use-cards"
-import type { ReviewGrade, ReviewMode, WordCard } from "@/lib/types"
+import { useCards, useDueContexts } from "@/hooks/use-cards"
+import type { ReviewGrade, ReviewMode, ReviewUnit } from "@/lib/types"
 
 interface ReviewSessionProps {
   onExit: () => void
 }
 
 export function ReviewSession({ onExit }: ReviewSessionProps) {
-  const { reviewCard, refresh: refreshAll } = useCards()
-  const { dueCards, refresh: refreshDue } = useDueCards()
+  const { reviewContext, refresh: refreshAll } = useCards()
+  const { dueContexts, refresh: refreshDue } = useDueContexts()
   const [mode, setMode] = useState<ReviewMode>("cloze")
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [sessionCards, setSessionCards] = useState<WordCard[]>([])
+  const [sessionUnits, setSessionUnits] = useState<ReviewUnit[]>([])
   const [reviewedCount, setReviewedCount] = useState(0)
 
-  // Initialize session cards
+  // Initialize session with due contexts
   useEffect(() => {
-    if (dueCards.length > 0 && sessionCards.length === 0) {
-      setSessionCards([...dueCards])
+    if (dueContexts.length > 0 && sessionUnits.length === 0) {
+      setSessionUnits([...dueContexts])
     }
-  }, [dueCards, sessionCards.length])
+  }, [dueContexts, sessionUnits.length])
 
-  const currentCard = sessionCards[currentIndex]
-  const totalCards = sessionCards.length
-  const progress = totalCards > 0 ? (reviewedCount / totalCards) * 100 : 0
+  const currentUnit = sessionUnits[currentIndex]
+  const totalUnits = sessionUnits.length
+  const progress = totalUnits > 0 ? (reviewedCount / totalUnits) * 100 : 0
 
   const handleGrade = async (grade: ReviewGrade) => {
-    if (!currentCard) return
+    if (!currentUnit) return
 
-    await reviewCard(currentCard, grade)
+    // 复习当前语境
+    await reviewContext(currentUnit.card.id, currentUnit.contextIndex, grade)
     setReviewedCount((prev) => prev + 1)
 
     if (grade === "again") {
-      // Move card to end of queue
-      setSessionCards((prev) => {
-        const newCards = [...prev]
-        const [removed] = newCards.splice(currentIndex, 1)
-        newCards.push(removed)
-        return newCards
+      // Move unit to end of queue
+      setSessionUnits((prev) => {
+        const newUnits = [...prev]
+        const [removed] = newUnits.splice(currentIndex, 1)
+        newUnits.push(removed)
+        return newUnits
       })
     } else {
-      // Move to next card
-      if (currentIndex < sessionCards.length - 1) {
+      // Move to next unit
+      if (currentIndex < sessionUnits.length - 1) {
         setCurrentIndex((prev) => prev + 1)
       } else {
         // Session complete
-        setSessionCards([])
+        setSessionUnits([])
       }
     }
 
@@ -65,7 +66,7 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
   }
 
   // Session complete state
-  if (sessionCards.length === 0 || currentIndex >= sessionCards.length) {
+  if (sessionUnits.length === 0 || currentIndex >= sessionUnits.length) {
     return (
       <Card className="max-w-md mx-auto border-border/50">
         <CardContent className="p-8 text-center space-y-6">
@@ -74,7 +75,7 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
           </div>
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">复习完成！</h2>
-            <p className="text-muted-foreground">你已完成 {reviewedCount} 张卡片的复习</p>
+            <p className="text-muted-foreground">你已完成 {reviewedCount} 个语境的复习</p>
           </div>
           <Button onClick={onExit} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
@@ -121,15 +122,15 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">
-            进度: {currentIndex + 1} / {totalCards}
+            进度: {currentIndex + 1} / {totalUnits}
           </span>
           <Badge variant="secondary">已复习: {reviewedCount}</Badge>
         </div>
         <Progress value={progress} className="h-2" />
       </div>
 
-      {/* Review Card */}
-      <ReviewCard card={currentCard} mode={mode} onGrade={handleGrade} />
+      {/* Review Card - 传递 ReviewUnit */}
+      <ReviewCard unit={currentUnit} mode={mode} onGrade={handleGrade} />
     </div>
   )
 }

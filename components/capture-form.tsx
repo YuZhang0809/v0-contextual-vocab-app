@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Loader2, Sparkles, Save, RotateCcw, Check, Plus } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Loader2, Sparkles, RotateCcw, Check, Plus, Layers } from "lucide-react"
 import { useCards } from "@/hooks/use-cards"
 import { cn } from "@/lib/utils"
 
@@ -15,6 +16,7 @@ interface AnalysisItem {
   context_segment: string
   meaning: string
   example_sentence: string
+  example_sentence_translation?: string  // 新增：例句翻译
 }
 
 interface AnalysisResult {
@@ -28,6 +30,9 @@ interface AnalysisResult {
   items: AnalysisItem[]
 }
 
+// 保存状态：新建 or 追加
+type SaveStatus = { type: "new" } | { type: "appended"; contextCount: number }
+
 export function CaptureForm() {
   const { addCard } = useCards()
   const [inputText, setInputText] = useState("")
@@ -35,7 +40,7 @@ export function CaptureForm() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   
   // Track saved state for each item index
-  const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set())
+  const [savedStatuses, setSavedStatuses] = useState<Map<number, SaveStatus>>(new Map())
   const [savingIndex, setSavingIndex] = useState<number | null>(null)
 
   // Local state for editing items before saving
@@ -52,7 +57,7 @@ export function CaptureForm() {
 
     setIsAnalyzing(true)
     setAnalysisResult(null)
-    setSavedIndices(new Set())
+    setSavedStatuses(new Map())
     setEditedItems([])
 
     try {
@@ -83,16 +88,21 @@ export function CaptureForm() {
 
     setSavingIndex(index)
     try {
-      await addCard({
+      const result = await addCard({
         word: item.term,
         sentence: item.example_sentence,
         meaning_cn: item.meaning,
-        mnemonics: "", 
+        sentence_translation: item.example_sentence_translation,  // 传递翻译
+        source: "capture",
       })
 
-      setSavedIndices((prev) => {
-        const next = new Set(prev)
-        next.add(index)
+      setSavedStatuses((prev) => {
+        const next = new Map(prev)
+        if (result.isNew) {
+          next.set(index, { type: "new" })
+        } else {
+          next.set(index, { type: "appended", contextCount: result.card.contexts?.length || 1 })
+        }
         return next
       })
     } catch (error) {
@@ -105,7 +115,7 @@ export function CaptureForm() {
   const handleReset = () => {
     setInputText("")
     setAnalysisResult(null)
-    setSavedIndices(new Set())
+    setSavedStatuses(new Map())
     setEditedItems([])
   }
 
@@ -137,7 +147,6 @@ export function CaptureForm() {
       if (inputEl) {
         inputEl.focus()
         inputEl.scrollIntoView({ behavior: "smooth", block: "center" })
-        // Optional: Add a visual flash effect here if needed
       }
       return
     }
@@ -180,9 +189,6 @@ export function CaptureForm() {
     })
 
     try {
-        // Mode: Specific Lookup
-        // We pass 'focus_term' to tell the API exactly what we are looking for.
-        // 'text' serves as the context.
         const response = await fetch("/api/analyze", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -195,12 +201,12 @@ export function CaptureForm() {
         if (!response.ok) throw new Error("Lookup failed")
         
         const result: AnalysisResult = await response.json()
-        // The API returns a list, we take the first relevant one
         if (result.items && result.items.length > 0) {
-            // Find the best match or just take the first
             const bestMatch = result.items[0]
             handleItemChange(index, 'meaning', bestMatch.meaning)
-            // If example sentence was empty, fill it
+            if (bestMatch.example_sentence_translation) {
+                handleItemChange(index, 'example_sentence_translation', bestMatch.example_sentence_translation)
+            }
             if (!item.example_sentence && bestMatch.example_sentence) {
                 handleItemChange(index, 'example_sentence', bestMatch.example_sentence)
             }
@@ -216,6 +222,10 @@ export function CaptureForm() {
     }
   }
 
+  const getSaveStatus = (index: number): SaveStatus | null => {
+    return savedStatuses.get(index) || null
+  }
+
   return (
     <div className="space-y-6">
       <Card className="border-border/50">
@@ -225,7 +235,7 @@ export function CaptureForm() {
             智能录入
           </CardTitle>
           <CardDescription>
-            输入单词、词组或完整句子，AI 将自动分析并生成卡片。
+            输入单词、词组或完整句子，AI 将自动分析并生成卡片。重复单词会自动追加语境。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -310,76 +320,108 @@ export function CaptureForm() {
           )}
 
           <div className="grid gap-4">
-            {editedItems.map((item, index) => (
-              <Card key={index} className={cn("border-l-4 transition-all", savedIndices.has(index) ? "border-l-green-500 opacity-60" : "border-l-primary")}>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label>目标单词 (Term)</Label>
-                      <Input 
-                        ref={el => { itemRefs.current[index] = el }}
-                        value={item.term} 
-                        onChange={(e) => handleItemChange(index, 'term', e.target.value)}
-                        className="font-bold"
-                        placeholder="输入单词..."
-                      />
+            {editedItems.map((item, index) => {
+              const saveStatus = getSaveStatus(index)
+              const isSaved = saveStatus !== null
+              
+              return (
+                <Card 
+                  key={index} 
+                  className={cn(
+                    "border-l-4 transition-all", 
+                    isSaved 
+                      ? saveStatus.type === "appended" 
+                        ? "border-l-blue-500 opacity-70" 
+                        : "border-l-green-500 opacity-70"
+                      : "border-l-primary"
+                  )}
+                >
+                  <CardContent className="pt-6 space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>目标单词 (Term)</Label>
+                        <Input 
+                          ref={el => { itemRefs.current[index] = el }}
+                          value={item.term} 
+                          onChange={(e) => handleItemChange(index, 'term', e.target.value)}
+                          className="font-bold"
+                          placeholder="输入单词..."
+                          disabled={isSaved}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center justify-between">
+                            中文释义 (Meaning)
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-5 w-5 text-muted-foreground hover:text-primary"
+                              onClick={() => handleAssistiveLookup(index)}
+                              disabled={!item.term || lookupIndices.has(index) || isSaved}
+                              title="AI 自动填义"
+                            >
+                                {lookupIndices.has(index) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                            </Button>
+                        </Label>
+                        <Input 
+                          value={item.meaning} 
+                          onChange={(e) => handleItemChange(index, 'meaning', e.target.value)}
+                          placeholder="点击右上方按钮自动填充"
+                          disabled={isSaved}
+                        />
+                      </div>
                     </div>
+                    
                     <div className="space-y-2">
-                      <Label className="flex items-center justify-between">
-                          中文释义 (Meaning)
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-5 w-5 text-muted-foreground hover:text-primary"
-                            onClick={() => handleAssistiveLookup(index)}
-                            disabled={!item.term || lookupIndices.has(index)}
-                            title="AI 自动填义"
-                          >
-                              {lookupIndices.has(index) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                          </Button>
-                      </Label>
-                      <Input 
-                        value={item.meaning} 
-                        onChange={(e) => handleItemChange(index, 'meaning', e.target.value)}
-                        placeholder="点击右上方按钮自动填充"
+                      <Label>例句 / 语境 (Context)</Label>
+                      <Textarea 
+                        value={item.example_sentence} 
+                        onChange={(e) => handleItemChange(index, 'example_sentence', e.target.value)}
+                        className="font-mono text-sm bg-muted/20"
+                        rows={2}
+                        disabled={isSaved}
                       />
+                      {/* 显示翻译（如果有） */}
+                      {item.example_sentence_translation && (
+                        <p className="text-sm text-muted-foreground pl-2 border-l-2 border-muted">
+                          {item.example_sentence_translation}
+                        </p>
+                      )}
                     </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>例句 / 语境 (Context)</Label>
-                    <Textarea 
-                      value={item.example_sentence} 
-                      onChange={(e) => handleItemChange(index, 'example_sentence', e.target.value)}
-                      className="font-mono text-sm bg-muted/20"
-                      rows={2}
-                    />
-                  </div>
-                </CardContent>
-                <CardFooter className="bg-secondary/10 py-3 flex justify-end">
-                  <Button 
-                    size="sm" 
-                    onClick={() => handleSaveItem(index)} 
-                    disabled={savedIndices.has(index) || savingIndex === index || !item.term || !item.meaning}
-                    variant={savedIndices.has(index) ? "outline" : "default"}
-                  >
-                    {savingIndex === index ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : savedIndices.has(index) ? (
-                      <>
-                        <Check className="h-4 w-4 mr-2" />
-                        已保存
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4 mr-2" />
-                        添加到词库
-                      </>
+                  </CardContent>
+                  <CardFooter className="bg-secondary/10 py-3 flex justify-end gap-2">
+                    {/* 保存状态提示 */}
+                    {saveStatus?.type === "appended" && (
+                      <Badge variant="secondary" className="gap-1 mr-auto">
+                        <Layers className="h-3 w-3" />
+                        已追加（共 {saveStatus.contextCount} 个语境）
+                      </Badge>
                     )}
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+                    
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleSaveItem(index)} 
+                      disabled={isSaved || savingIndex === index || !item.term || !item.meaning}
+                      variant={isSaved ? "outline" : "default"}
+                    >
+                      {savingIndex === index ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : isSaved ? (
+                        <>
+                          <Check className="h-4 w-4 mr-2" />
+                          {saveStatus?.type === "appended" ? "已追加" : "已保存"}
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          添加到词库
+                        </>
+                      )}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              )
+            })}
           </div>
         </div>
       )}

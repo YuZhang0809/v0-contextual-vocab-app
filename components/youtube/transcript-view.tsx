@@ -19,6 +19,23 @@ interface TranscriptViewProps {
 export function TranscriptView({ transcript, currentTime, onWordClick }: TranscriptViewProps) {
   const activeSegmentRef = useRef<HTMLDivElement | null>(null);
 
+  // Find active segment index
+  const activeIndex = transcript.findIndex(
+    (seg, i) => {
+        const nextSeg = transcript[i + 1];
+        const segStart = seg.offset / 1000;
+        const segEnd = (seg.offset + seg.duration) / 1000;
+        
+        // Calculate the effective end time.
+        // It includes a buffer (0.5s) to keep highlight during short pauses, 
+        // but is capped by the start of the next segment to prevent overlap delay.
+        const nextStart = nextSeg ? nextSeg.offset / 1000 : Infinity;
+        const effectiveEnd = Math.min(segEnd + 0.5, nextStart);
+        
+        return currentTime >= segStart && currentTime < effectiveEnd;
+    }
+  );
+
   useEffect(() => {
     if (activeSegmentRef.current) {
       activeSegmentRef.current.scrollIntoView({
@@ -26,24 +43,15 @@ export function TranscriptView({ transcript, currentTime, onWordClick }: Transcr
         block: 'center',
       });
     }
-  }, [currentTime]); // Simple dependency on currentTime might cause too much scrolling, but let's try.
-  // Optimization: Only scroll if the active segment index changes.
-  
-  // Find active segment index
-  const activeIndex = transcript.findIndex(
-    (seg, i) => {
-        const nextSeg = transcript[i + 1];
-        const start = seg.offset / 1000; // Library usually returns ms? No, verify. youtube-transcript returns ms.
-        // Wait, let's verify return format of youtube-transcript.
-        // It returns 'offset' in number (ms) and 'duration' in number (ms).
-        
-        // currentTime is in seconds from YouTube Player API.
-        const segStart = seg.offset / 1000;
-        const segEnd = (seg.offset + seg.duration) / 1000;
-        
-        return currentTime >= segStart && currentTime < segEnd + 0.5; // Buffer
-    }
-  );
+  }, [activeIndex]); // Only scroll when the active line changes
+
+  const getContext = (currentIndex: number) => {
+    const prev = transcript[currentIndex - 1]?.text || "";
+    const current = transcript[currentIndex].text || "";
+    const next = transcript[currentIndex + 1]?.text || "";
+    
+    return `${prev} ${current} ${next}`.trim();
+  };
 
   return (
     <ScrollArea className="h-[400px] w-full rounded-md border border-border/50 bg-card/50 p-4">
@@ -73,7 +81,7 @@ export function TranscriptView({ transcript, currentTime, onWordClick }: Transcr
                         e.stopPropagation();
                         // Clean word from punctuation for better lookup
                         const cleanWord = word.replace(/[^\w\s'-]/g, '');
-                        onWordClick(cleanWord, segment.text);
+                        onWordClick(cleanWord, getContext(index));
                     }}
                     className={cn(
                         "cursor-pointer hover:bg-primary/20 hover:text-primary rounded px-0.5 transition-colors",

@@ -1,0 +1,42 @@
+# Project Context & Tech Stack
+You are an expert Full-Stack Developer working on "ContextVocab", a context-first vocabulary learning app.
+
+## Tech Stack (Strict)
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS v4
+- **UI Library**: Shadcn UI (Radix Primitives)
+- **Icons**: Lucide React
+- **Database**: Supabase (PostgreSQL)
+- **AI Provider**: DeepSeek (via Vercel AI SDK)
+
+## Architecture Rules (CRITICAL)
+1. **Database Schema (SSOT)**: 
+   - The database schema is defined in `docs/supabase-setup.sql`.
+   - We use a **"Context-level SRS" (v3)** architecture.
+   - `WordCard` table stores the word stem.
+   - `contexts` column (JSONB) stores an array of context objects.
+   - **SRS Data (interval, ease_factor, etc.) lives INSIDE each context object**, not on the root table.
+   - NEVER generate code that assumes flat SRS fields on the `word_cards` table.
+
+2. **AI Implementation**:
+   - Use `app/api/analyze/route.ts` as the reference for AI logic.
+   - We use `generateObject` with `zod` schema for structured output.
+   - Two modes: "General Analysis" (sentence input) and "Focus Mode" (specific term lookup).
+
+3. **State Management**:
+   - Use Server Actions for data mutations (saving cards, updating reviews).
+   - Use React Query (or SWR) for client-side data fetching if needed, but prefer Server Components for initial data load.
+
+## Coding Style
+- Use Functional Components with Arrow Functions.
+- Explicitly type all props and return values.
+- Use `const` for variables.
+- Avoid `any` types; use interfaces defined in `lib/types.ts`.
+- File naming: kebab-case (e.g., `vocabulary-list.tsx`).
+
+## Documentation
+- **Business Logic**: Refer to `docs/PRD.md`.
+- **System Architecture**: Refer to `docs/ARCHITECTURE.md`.
+- **Database**: Refer to `docs/supabase-setup.sql`.
+

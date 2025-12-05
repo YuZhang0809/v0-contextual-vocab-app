@@ -7,19 +7,20 @@ import { CaptureForm } from "@/components/capture-form"
 import { ReviewSession } from "@/components/review-session"
 import { LoginForm } from "@/components/auth/login-form"
 import { YouTubeSession } from "@/components/youtube-session"
-import { useDueCards } from "@/hooks/use-cards"
+import { VocabularyList } from "@/components/vocabulary-list"
+import { useDueContexts } from "@/hooks/use-cards"
 import { useAuth } from "@/hooks/use-auth"
 import { Loader2 } from "lucide-react"
 
-type View = "dashboard" | "capture" | "review" | "youtube"
+type View = "dashboard" | "capture" | "review" | "youtube" | "vocabulary"
 
 export default function HomePage() {
   const [currentView, setCurrentView] = useState<View>("dashboard")
-  const { dueCards } = useDueCards()
+  const { dueCount } = useDueContexts()
   const { user, loading: authLoading } = useAuth()
 
   const handleStartReview = () => {
-    if (dueCards.length > 0) {
+    if (dueCount > 0) {
       setCurrentView("review")
     }
   }
@@ -46,7 +47,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       {currentView !== "review" && (
-        <AppHeader currentView={currentView} onViewChange={setCurrentView} dueCount={dueCards.length} />
+        <AppHeader currentView={currentView} onViewChange={setCurrentView} dueCount={dueCount} />
       )}
 
       <main className="container mx-auto px-4 py-6 sm:py-8">
@@ -56,6 +57,7 @@ export default function HomePage() {
             <CaptureForm />
           </div>
         )}
+        {currentView === "vocabulary" && <VocabularyList />}
         {currentView === "youtube" && <YouTubeSession />}
         {currentView === "review" && <ReviewSession onExit={handleExitReview} />}
       </main>

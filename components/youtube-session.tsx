@@ -1,12 +1,13 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { VideoPlayer } from '@/components/youtube/video-player';
 import { TranscriptView } from '@/components/youtube/transcript-view';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, Search, Play, Youtube, Plus, Check, X } from 'lucide-react';
+import { Loader2, Search, Youtube, Plus, Check, X, Layers } from 'lucide-react';
 import { useCards } from '@/hooks/use-cards';
 
 interface TranscriptSegment {
@@ -20,12 +21,16 @@ interface AnalysisItem {
   context_segment: string;
   meaning: string;
   example_sentence: string;
+  example_sentence_translation?: string;  // 新增：例句翻译
 }
 
 interface AnalysisResult {
   is_sentence: boolean;
   items: AnalysisItem[];
 }
+
+// 保存状态类型
+type SaveStatus = { type: "new" } | { type: "appended"; contextCount: number } | null;
 
 export function YouTubeSession() {
   const [url, setUrl] = useState('');
@@ -41,7 +46,7 @@ export function YouTubeSession() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   
   const { addCard } = useCards();
-  const [saved, setSaved] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>(null);
 
   const extractVideoId = (inputUrl: string) => {
     const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
@@ -89,7 +94,7 @@ export function YouTubeSession() {
       
       setAnalyzing(true);
       setShowAnalysis(true);
-      setSaved(false);
+      setSaveStatus(null);
       setAnalysisResult(null);
 
       try {
@@ -102,7 +107,10 @@ export function YouTubeSession() {
               })
           });
 
-          if (!res.ok) throw new Error("Analysis failed");
+          if (!res.ok) {
+              const errorData = await res.json().catch(() => ({}));
+              throw new Error(errorData.details || "Analysis failed");
+          }
 
           const data = await res.json();
           if (data.items && data.items.length > 0) {
@@ -117,16 +125,23 @@ export function YouTubeSession() {
   };
 
   const handleSaveCard = async () => {
-      if (!analysisResult) return;
+      if (!analysisResult || !videoId) return;
       
       try {
-          await addCard({
+          const result = await addCard({
               word: analysisResult.term,
               sentence: analysisResult.example_sentence,
               meaning_cn: analysisResult.meaning,
-              mnemonics: "",
+              sentence_translation: analysisResult.example_sentence_translation,  // 传递翻译
+              source: `youtube:${videoId}`,
           });
-          setSaved(true);
+          
+          if (result.isNew) {
+            setSaveStatus({ type: "new" });
+          } else {
+            setSaveStatus({ type: "appended", contextCount: result.card.contexts?.length || 1 });
+          }
+          
           setTimeout(() => {
               setShowAnalysis(false);
               if (player) player.playVideo();
@@ -162,7 +177,7 @@ export function YouTubeSession() {
                 </Button>
             </div>
             <p className="text-muted-foreground text-sm">
-                支持带字幕的英文视频，点击字幕单词即可即时查词
+                支持带字幕的英文视频，点击字幕单词即可即时查词。重复单词会自动追加语境。
             </p>
         </div>
       ) : (
@@ -224,28 +239,43 @@ export function YouTubeSession() {
                                             <div className="text-sm font-medium text-muted-foreground">释义</div>
                                             <div className="text-lg font-medium">{analysisResult.meaning}</div>
                                         </div>
-                                        <div className="space-y-1 bg-muted/30 p-3 rounded-md">
+                                        <div className="space-y-2 bg-muted/30 p-3 rounded-md">
                                             <div className="text-xs font-medium text-muted-foreground uppercase">Context</div>
                                             <div className="text-sm font-serif italic leading-relaxed">
-                                                "{analysisResult.example_sentence}"
+                                                &quot;{analysisResult.example_sentence}&quot;
                                             </div>
+                                            {/* 显示翻译 */}
+                                            {analysisResult.example_sentence_translation && (
+                                                <div className="text-sm text-muted-foreground pt-2 border-t border-border/30">
+                                                    {analysisResult.example_sentence_translation}
+                                                </div>
+                                            )}
                                         </div>
                                     </>
                                 ) : (
                                     <div className="text-center text-red-500">分析失败，请重试</div>
                                 )}
                             </CardContent>
-                            <CardFooter className="pt-2">
+                            <CardFooter className="pt-2 flex-col gap-2">
+                                {/* 追加提示 */}
+                                {saveStatus?.type === "appended" && (
+                                  <Badge variant="secondary" className="gap-1 w-full justify-center py-1">
+                                    <Layers className="h-3 w-3" />
+                                    已追加到现有单词（共 {saveStatus.contextCount} 个语境）
+                                  </Badge>
+                                )}
+                                
                                 {analysisResult && !analyzing && (
                                     <Button 
                                         className="w-full gap-2" 
                                         onClick={handleSaveCard}
-                                        disabled={saved}
-                                        variant={saved ? "secondary" : "default"}
+                                        disabled={saveStatus !== null}
+                                        variant={saveStatus !== null ? "secondary" : "default"}
                                     >
-                                        {saved ? (
+                                        {saveStatus !== null ? (
                                             <>
-                                                <Check className="h-4 w-4" /> 已保存
+                                                <Check className="h-4 w-4" /> 
+                                                {saveStatus.type === "appended" ? "已追加" : "已保存"}
                                             </>
                                         ) : (
                                             <>
@@ -264,4 +294,3 @@ export function YouTubeSession() {
     </div>
   );
 }
-

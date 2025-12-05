@@ -48,7 +48,7 @@ export function VideoPlayer({ videoId, onReady, onStateChange, onTimeUpdate }: V
               const currentTime = playerRef.current.getCurrentTime();
               onTimeUpdate(currentTime);
           }
-      }, 500); // Update every 500ms
+      }, 100); // Update every 100ms
   };
 
   const stopTimer = () => {

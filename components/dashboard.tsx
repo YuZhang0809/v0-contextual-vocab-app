@@ -17,10 +17,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { BookOpen, Clock, GraduationCap, Trash2, Search, Volume2 } from "lucide-react"
-import { useCards, useDueCards } from "@/hooks/use-cards"
-import { getNewCardsCount, getLearningCardsCount, getReviewCardsCount } from "@/lib/sm2"
-import type { WordCard } from "@/lib/types"
+import { BookOpen, Clock, GraduationCap, Trash2, Search, Volume2, Layers } from "lucide-react"
+import { useCards, useDueContexts } from "@/hooks/use-cards"
+import { getContextStats } from "@/lib/sm2"
+import type { WordCard, CardStatus } from "@/lib/types"
 
 interface DashboardProps {
   onStartReview: () => void
@@ -28,20 +28,64 @@ interface DashboardProps {
 
 export function Dashboard({ onStartReview }: DashboardProps) {
   const { cards, removeCard } = useCards()
-  const { dueCards } = useDueCards()
+  const { dueCount } = useDueContexts()
   const [searchQuery, setSearchQuery] = useState("")
 
-  const newCount = getNewCardsCount(cards)
-  const learningCount = getLearningCardsCount(cards)
-  const reviewCount = getReviewCardsCount(cards)
-  const dueCount = dueCards.length
+  // 基于语境的统计
+  const stats = getContextStats(cards)
 
-  const filteredCards = cards.filter(
-    (card) =>
-      card.word.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      card.sentence.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      card.meaning_cn.includes(searchQuery),
-  )
+  // 获取第一个语境的信息（用于搜索和显示）
+  const getFirstContext = (card: WordCard) => {
+    if (card.contexts && card.contexts.length > 0) {
+      return card.contexts[0]
+    }
+    return null
+  }
+
+  // 获取卡片中最近需要复习的时间
+  const getEarliestReviewTime = (card: WordCard): number => {
+    if (!card.contexts || card.contexts.length === 0) return Date.now()
+    return Math.min(...card.contexts.map(ctx => ctx.next_review_at))
+  }
+
+  // 获取卡片的综合状态（基于所有语境）
+  const getCardStatus = (card: WordCard): { label: string; variant: string } => {
+    if (!card.contexts || card.contexts.length === 0) {
+      return { label: "无语境", variant: "secondary" }
+    }
+    
+    const statuses = card.contexts.map(ctx => ctx.review_status)
+    
+    // 如果有新的语境，显示新
+    if (statuses.includes("new")) {
+      return { label: "有新语境", variant: "secondary" }
+    }
+    // 如果有学习中的，显示学习中
+    if (statuses.includes("learning")) {
+      return { label: "学习中", variant: "warning" }
+    }
+    // 如果全部已掌握
+    if (statuses.every(s => s === "graduated")) {
+      return { label: "已掌握", variant: "success" }
+    }
+    // 否则复习中
+    return { label: "复习中", variant: "primary" }
+  }
+
+  const filteredCards = cards.filter((card) => {
+    const query = searchQuery.toLowerCase()
+    if (card.word.toLowerCase().includes(query)) return true
+    
+    // 搜索所有语境
+    if (card.contexts && card.contexts.length > 0) {
+      return card.contexts.some(
+        (ctx) =>
+          ctx.sentence.toLowerCase().includes(query) ||
+          ctx.meaning_cn.includes(searchQuery)
+      )
+    }
+    return false
+  })
 
   const speakWord = (word: string) => {
     if ("speechSynthesis" in window) {
@@ -52,16 +96,18 @@ export function Dashboard({ onStartReview }: DashboardProps) {
     }
   }
 
-  const getStatusBadge = (card: WordCard) => {
-    switch (card.review_status) {
-      case "new":
-        return <Badge variant="secondary">新词</Badge>
-      case "learning":
-        return <Badge className="bg-warning/10 text-warning border-warning/30">学习中</Badge>
-      case "review":
-        return <Badge className="bg-primary/10 text-primary border-primary/30">复习中</Badge>
-      case "graduated":
-        return <Badge className="bg-success/10 text-success border-success/30">已掌握</Badge>
+  const getStatusBadge = (status: { label: string; variant: string }) => {
+    switch (status.variant) {
+      case "secondary":
+        return <Badge variant="secondary">{status.label}</Badge>
+      case "warning":
+        return <Badge className="bg-warning/10 text-warning border-warning/30">{status.label}</Badge>
+      case "primary":
+        return <Badge className="bg-primary/10 text-primary border-primary/30">{status.label}</Badge>
+      case "success":
+        return <Badge className="bg-success/10 text-success border-success/30">{status.label}</Badge>
+      default:
+        return <Badge variant="secondary">{status.label}</Badge>
     }
   }
 
@@ -83,7 +129,7 @@ export function Dashboard({ onStartReview }: DashboardProps) {
 
   return (
     <div className="space-y-6">
-      {/* Stats Overview */}
+      {/* Stats Overview - 基于语境统计 */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card className="border-border/50">
           <CardContent className="p-4">
@@ -93,7 +139,7 @@ export function Dashboard({ onStartReview }: DashboardProps) {
               </div>
               <div>
                 <p className="text-2xl font-bold">{dueCount}</p>
-                <p className="text-sm text-muted-foreground">待复习</p>
+                <p className="text-sm text-muted-foreground">待复习语境</p>
               </div>
             </div>
           </CardContent>
@@ -106,8 +152,8 @@ export function Dashboard({ onStartReview }: DashboardProps) {
                 <BookOpen className="h-5 w-5 text-secondary-foreground" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{newCount}</p>
-                <p className="text-sm text-muted-foreground">新词</p>
+                <p className="text-2xl font-bold">{stats.newCount}</p>
+                <p className="text-sm text-muted-foreground">新语境</p>
               </div>
             </div>
           </CardContent>
@@ -120,7 +166,7 @@ export function Dashboard({ onStartReview }: DashboardProps) {
                 <BookOpen className="h-5 w-5 text-warning" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{learningCount}</p>
+                <p className="text-2xl font-bold">{stats.learningCount}</p>
                 <p className="text-sm text-muted-foreground">学习中</p>
               </div>
             </div>
@@ -134,8 +180,8 @@ export function Dashboard({ onStartReview }: DashboardProps) {
                 <GraduationCap className="h-5 w-5 text-success" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{reviewCount}</p>
-                <p className="text-sm text-muted-foreground">复习/已掌握</p>
+                <p className="text-2xl font-bold">{stats.graduatedCount}</p>
+                <p className="text-sm text-muted-foreground">已掌握</p>
               </div>
             </div>
           </CardContent>
@@ -148,7 +194,7 @@ export function Dashboard({ onStartReview }: DashboardProps) {
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-lg">开始复习</h3>
-              <p className="text-muted-foreground">你有 {dueCount} 张卡片需要复习</p>
+              <p className="text-muted-foreground">你有 {dueCount} 个语境需要复习</p>
             </div>
             <Button onClick={onStartReview} size="lg" className="gap-2">
               <BookOpen className="h-5 w-5" />
@@ -163,7 +209,10 @@ export function Dashboard({ onStartReview }: DashboardProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>词库管理</CardTitle>
-            <Badge variant="outline">{cards.length} 词</Badge>
+            <div className="flex gap-2">
+              <Badge variant="outline">{cards.length} 词</Badge>
+              <Badge variant="secondary">{stats.total} 语境</Badge>
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -193,58 +242,75 @@ export function Dashboard({ onStartReview }: DashboardProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCards.map((card) => (
-                    <TableRow key={card.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-medium">{card.word}</span>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => speakWord(card.word)}>
-                            <Volume2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <p className="text-sm text-muted-foreground line-clamp-1">{card.sentence}</p>
-                          <p className="text-sm font-medium">{card.meaning_cn}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(card)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatNextReview(card.next_review_at)}
-                      </TableCell>
-                      <TableCell>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
+                  {filteredCards.map((card) => {
+                    const firstContext = getFirstContext(card)
+                    const contextCount = card.contexts?.length || 0
+                    const cardStatus = getCardStatus(card)
+                    const earliestReview = getEarliestReviewTime(card)
+                    
+                    return (
+                      <TableRow key={card.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-medium">{card.word}</span>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => speakWord(card.word)}>
+                              <Volume2 className="h-3 w-3" />
                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>确认删除</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                确定要删除单词 "{card.word}" 吗？此操作无法撤销。
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>取消</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => removeCard(card.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            {contextCount > 1 && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 gap-0.5">
+                                <Layers className="h-2.5 w-2.5" />
+                                {contextCount}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <p className="text-sm text-muted-foreground line-clamp-1">
+                              {firstContext?.sentence || "无例句"}
+                            </p>
+                            <p className="text-sm font-medium">
+                              {firstContext?.meaning_cn || "无释义"}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(cardStatus)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatNextReview(earliestReview)}
+                        </TableCell>
+                        <TableCell>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
                               >
-                                删除
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>确认删除</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  确定要删除单词 &quot;{card.word}&quot; 及其所有 {contextCount} 个语境吗？此操作无法撤销。
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>取消</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => removeCard(card.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  删除
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>

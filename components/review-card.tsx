@@ -1,26 +1,41 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Volume2, Eye } from "lucide-react"
-import type { WordCard, ReviewGrade, ReviewMode } from "@/lib/types"
+import type { ReviewGrade, ReviewMode, ReviewUnit } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 interface ReviewCardProps {
-  card: WordCard
+  unit: ReviewUnit
   mode: ReviewMode
   onGrade: (grade: ReviewGrade) => void
 }
 
-export function ReviewCard({ card, mode, onGrade }: ReviewCardProps) {
+export function ReviewCard({ unit, mode, onGrade }: ReviewCardProps) {
   const [isFlipped, setIsFlipped] = useState(false)
 
-  // Reset flip state when card changes
+  const { card, contextIndex } = unit
+
+  // 当前语境
+  const currentContext = useMemo(() => {
+    if (card.contexts && card.contexts.length > contextIndex) {
+      return card.contexts[contextIndex]
+    }
+    return null
+  }, [card.contexts, contextIndex])
+
+  // 获取当前例句、释义和翻译
+  const currentSentence = currentContext?.sentence || ""
+  const currentMeaning = currentContext?.meaning_cn || ""
+  const currentTranslation = currentContext?.sentence_translation || ""
+
+  // Reset flip state when unit changes
   useEffect(() => {
     setIsFlipped(false)
-  }, [card.id])
+  }, [card.id, contextIndex])
 
   const speakWord = useCallback(() => {
     if ("speechSynthesis" in window) {
@@ -32,13 +47,13 @@ export function ReviewCard({ card, mode, onGrade }: ReviewCardProps) {
   }, [card.word])
 
   const speakSentence = useCallback(() => {
-    if ("speechSynthesis" in window) {
-      const utterance = new SpeechSynthesisUtterance(card.sentence)
+    if ("speechSynthesis" in window && currentSentence) {
+      const utterance = new SpeechSynthesisUtterance(currentSentence)
       utterance.lang = "en-US"
       utterance.rate = 0.85
       window.speechSynthesis.speak(utterance)
     }
-  }, [card.sentence])
+  }, [currentSentence])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -71,9 +86,23 @@ export function ReviewCard({ card, mode, onGrade }: ReviewCardProps) {
   }, [isFlipped, onGrade])
 
   // Create cloze text
-  const getClozeText = () => {
+  const getClozeText = useCallback(() => {
+    if (!currentSentence) return ""
     const regex = new RegExp(`\\b${card.word}\\b`, "gi")
-    return card.sentence.replace(regex, "______")
+    return currentSentence.replace(regex, "______")
+  }, [currentSentence, card.word])
+
+  // 如果没有语境，显示错误状态
+  if (!currentContext) {
+    return (
+      <div className="w-full max-w-2xl mx-auto">
+        <Card className="border-border/50 overflow-hidden">
+          <CardContent className="p-6 sm:p-8 text-center text-muted-foreground">
+            该卡片没有可用的语境数据
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -104,7 +133,7 @@ export function ReviewCard({ card, mode, onGrade }: ReviewCardProps) {
                     mode === "cloze" && !isFlipped ? "text-foreground" : "text-muted-foreground",
                   )}
                 >
-                  {mode === "cloze" && !isFlipped ? getClozeText() : card.sentence}
+                  {mode === "cloze" && !isFlipped ? getClozeText() : currentSentence}
                 </p>
                 <Button variant="ghost" size="icon" onClick={speakSentence} className="h-8 w-8 shrink-0">
                   <Volume2 className="h-4 w-4" />
@@ -124,12 +153,26 @@ export function ReviewCard({ card, mode, onGrade }: ReviewCardProps) {
               </div>
             ) : (
               <div className="space-y-6 pt-4 border-t border-border/50">
-                {/* Meaning and Mnemonic */}
+                {/* Meaning */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">释义</Badge>
-                    <span className="text-lg">{card.meaning_cn}</span>
+                    <span className="text-lg">{currentMeaning}</span>
                   </div>
+                  
+                  {/* Sentence Translation */}
+                  {currentTranslation && (
+                    <div className="bg-muted/30 p-3 rounded-lg">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                        句子翻译
+                      </div>
+                      <p className="text-sm text-foreground/80 leading-relaxed">
+                        {currentTranslation}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Mnemonic */}
                   {card.mnemonics && (
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">助记</Badge>

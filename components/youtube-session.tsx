@@ -58,6 +58,7 @@ export function YouTubeSession() {
     percentage: number;
   } | null>(null);
   const [showTranslation, setShowTranslation] = useState(false);
+  const [cacheStatus, setCacheStatus] = useState<'checking' | 'cached' | 'none' | null>(null);
   const translatingRangeRef = useRef<Set<number>>(new Set()); // 正在翻译的索引
   const abortControllerRef = useRef<AbortController | null>(null);
   
@@ -224,7 +225,7 @@ export function YouTubeSession() {
 
   // 翻译全部字幕
   const handleTranslateAll = async () => {
-    if (transcript.length === 0 || translating) return;
+    if (transcript.length === 0 || translating || !videoId) return;
     
     setTranslating(true);
     setShowTranslation(true);
@@ -233,6 +234,22 @@ export function YouTubeSession() {
     
     setTranslating(false);
   };
+
+  // 监听翻译完成，自动保存缓存
+  useEffect(() => {
+    if (!videoId || transcript.length === 0 || cacheStatus === 'cached') return;
+    
+    // 检查是否所有字幕都已翻译
+    const allTranslated = transcript.every(seg => 
+      seg.translation && seg.translation !== '[翻译失败]' && seg.translation !== '[翻译缺失]'
+    );
+    
+    if (allTranslated) {
+      const translations = transcript.map(seg => seg.translation || '');
+      saveTranslationCache(videoId, translations);
+      setCacheStatus('cached');
+    }
+  }, [transcript, videoId, cacheStatus, saveTranslationCache]);
 
   // 智能翻译：从当前位置开始
   const handleSmartTranslate = () => {
@@ -264,6 +281,45 @@ export function YouTubeSession() {
     }
   }, [currentTime, showTranslation, transcript, getCurrentSegmentIndex, translateRange]);
 
+  // 检查翻译缓存
+  const checkTranslationCache = useCallback(async (videoId: string): Promise<string[] | null> => {
+    try {
+      setCacheStatus('checking');
+      const res = await fetch(`/api/youtube/translation-cache?video_id=${videoId}`);
+      if (!res.ok) return null;
+      
+      const data = await res.json();
+      if (data.cached && data.translations) {
+        setCacheStatus('cached');
+        return data.translations;
+      }
+      setCacheStatus('none');
+      return null;
+    } catch (error) {
+      console.warn('Cache check failed:', error);
+      setCacheStatus('none');
+      return null;
+    }
+  }, []);
+
+  // 保存翻译到缓存
+  const saveTranslationCache = useCallback(async (videoId: string, translations: string[]) => {
+    try {
+      await fetch('/api/youtube/translation-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          video_id: videoId,
+          translations,
+          segment_count: translations.length,
+        }),
+      });
+      console.log('Translation cache saved');
+    } catch (error) {
+      console.warn('Failed to save translation cache:', error);
+    }
+  }, []);
+
   const handleLoadVideo = async () => {
     const id = extractVideoId(url);
     if (!id) {
@@ -281,13 +337,15 @@ export function YouTubeSession() {
     setTranscript([]);
     setShowTranslation(false);
     setTranslationProgress(null);
+    setCacheStatus(null);
     translatingRangeRef.current.clear();
     setWatchSession(null);
     setVideoMetadata(null);
     wordsSavedRef.current = 0;
     
     try {
-      const [transcriptRes, metadata] = await Promise.all([
+      // 并行获取字幕、元数据和缓存
+      const [transcriptRes, metadata, cachedTranslations] = await Promise.all([
         fetch('/api/youtube/transcript', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -296,7 +354,8 @@ export function YouTubeSession() {
         fetchVideoMetadata(id).catch(err => {
           console.warn('Failed to fetch metadata:', err);
           return null;
-        })
+        }),
+        checkTranslationCache(id),
       ]);
       
       if (!transcriptRes.ok) {
@@ -305,11 +364,23 @@ export function YouTubeSession() {
       }
       
       const transcriptData = await transcriptRes.json();
-      // 初始化字幕状态
-      setTranscript(transcriptData.transcript.map((seg: TranscriptSegment) => ({
-        ...seg,
-        translationStatus: 'pending' as const,
-      })));
+      
+      // 如果有缓存且数量匹配，应用翻译
+      if (cachedTranslations && cachedTranslations.length === transcriptData.transcript.length) {
+        setTranscript(transcriptData.transcript.map((seg: TranscriptSegment, idx: number) => ({
+          ...seg,
+          translation: cachedTranslations[idx],
+          translationStatus: 'done' as const,
+        })));
+        setShowTranslation(true);
+        console.log('Loaded translations from cache');
+      } else {
+        // 初始化字幕状态（无翻译）
+        setTranscript(transcriptData.transcript.map((seg: TranscriptSegment) => ({
+          ...seg,
+          translationStatus: 'pending' as const,
+        })));
+      }
       
       if (metadata) {
         setVideoMetadata({
@@ -573,6 +644,12 @@ export function YouTubeSession() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
+                    {/* 缓存状态标识 */}
+                    {cacheStatus === 'cached' && translatedCount === totalCount && (
+                      <Badge variant="outline" className="text-[10px] border-success/30 text-success bg-success/5">
+                        已缓存
+                      </Badge>
+                    )}
                     {/* 翻译进度 */}
                     {translatedCount < totalCount && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">

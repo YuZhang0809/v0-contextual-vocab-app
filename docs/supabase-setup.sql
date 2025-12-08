@@ -3,7 +3,7 @@
 -- DO NOT MODIFY DATABASE STRUCTURE WITHOUT UPDATING THIS FILE
 -- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
--- ContextVocab 数据库初始化脚本 (v5 - Tags Support)
+-- ContextVocab 数据库初始化脚本 (v6 - Translation Cache)
 -- 在 Supabase SQL Editor 中运行此脚本
 -- 注意：如果你已有旧版表结构，请先删除旧表：
 --   DROP TABLE IF EXISTS user_tags;
@@ -127,6 +127,41 @@ CREATE POLICY "Users can update own tags" ON user_tags
   FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own tags" ON user_tags
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- ============================================================
+-- 13. 创建 video_translations 表 (视频翻译缓存)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS video_translations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  video_id TEXT NOT NULL,                     -- YouTube Video ID
+  translations JSONB NOT NULL DEFAULT '[]'::jsonb,  -- 翻译结果数组
+  segment_count INT NOT NULL DEFAULT 0,       -- 字幕段落数量
+  created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT,
+  updated_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT,
+  -- 每个用户每个视频一条缓存记录
+  UNIQUE(user_id, video_id)
+);
+
+-- 14. 创建 video_translations 索引
+CREATE INDEX IF NOT EXISTS idx_video_translations_user_id ON video_translations(user_id);
+CREATE INDEX IF NOT EXISTS idx_video_translations_video_id ON video_translations(user_id, video_id);
+
+-- 15. 启用 video_translations 的 RLS
+ALTER TABLE video_translations ENABLE ROW LEVEL SECURITY;
+
+-- 16. 创建 video_translations 的 RLS 策略
+CREATE POLICY "Users can view own translations" ON video_translations
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own translations" ON video_translations
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own translations" ON video_translations
+  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own translations" ON video_translations
   FOR DELETE USING (auth.uid() = user_id);
 
 -- 完成！

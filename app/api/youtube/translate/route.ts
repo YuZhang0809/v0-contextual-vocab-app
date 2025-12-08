@@ -23,12 +23,33 @@ interface TranslateRequest {
   stream?: boolean     // 是否使用流式响应
 }
 
-// 翻译单个批次
+// 上下文窗口大小（前后各取几个句子作为参考）
+const CONTEXT_WINDOW = 2
+
+// 翻译单个批次（带上下文）
 async function translateBatch(
   batch: TranscriptSegment[],
   batchNumber: number,
-  totalBatches: number
+  totalBatches: number,
+  contextBefore: TranscriptSegment[] = [],
+  contextAfter: TranscriptSegment[] = []
 ): Promise<string[]> {
+  // 构建上下文提示
+  const hasContext = contextBefore.length > 0 || contextAfter.length > 0
+  
+  let contextSection = ''
+  if (hasContext) {
+    contextSection = `
+【上下文参考（仅供理解，无需翻译）】
+${contextBefore.length > 0 ? `前文：${contextBefore.map(s => s.text).join(' ')}` : ''}
+${contextAfter.length > 0 ? `后文：${contextAfter.map(s => s.text).join(' ')}` : ''}
+
+注意：上下文仅帮助你理解句子的完整含义。例如：
+- 如果某句以 "an immediate" 结尾，而后文是 "disappointment"，应翻译为"立刻感到失望"而非"立刻生效"
+- 如果某句以 "I think we" 结尾，参考后文来理解完整意思
+`
+  }
+
   const prompt = `你是一位专业的英中翻译专家。请将以下英文字幕逐句翻译成简体中文。
 
 要求：
@@ -37,8 +58,9 @@ async function translateBatch(
 3. 保持原文的语气和风格
 4. 每句翻译独立成行，顺序与原文一一对应
 5. 返回的翻译数量必须与输入句子数量完全相同（${batch.length}句）
-
-英文字幕：
+6. **重要**：参考上下文理解不完整的句子，确保翻译连贯
+${contextSection}
+【需要翻译的字幕】
 ${batch.map((seg, idx) => `${idx + 1}. ${seg.text}`).join('\n')}
 
 请返回 ${batch.length} 条翻译。`
@@ -101,6 +123,16 @@ export async function POST(req: Request) {
               const batchNumber = Math.floor(i / BATCH_SIZE) + 1
               const batchStartIndex = startIndex + i
 
+              // 获取上下文（前后各 CONTEXT_WINDOW 个句子）
+              const contextBefore = segmentsToTranslate.slice(
+                Math.max(0, i - CONTEXT_WINDOW), 
+                i
+              )
+              const contextAfter = segmentsToTranslate.slice(
+                i + BATCH_SIZE, 
+                Math.min(segmentsToTranslate.length, i + BATCH_SIZE + CONTEXT_WINDOW)
+              )
+
               // 发送进度事件
               const progressEvent = {
                 type: "progress",
@@ -111,8 +143,8 @@ export async function POST(req: Request) {
               }
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(progressEvent)}\n\n`))
 
-              // 翻译当前批次
-              const translations = await translateBatch(batch, batchNumber, totalBatches)
+              // 翻译当前批次（带上下文）
+              const translations = await translateBatch(batch, batchNumber, totalBatches, contextBefore, contextAfter)
 
               // 发送翻译结果
               const dataEvent = {
@@ -158,7 +190,18 @@ export async function POST(req: Request) {
     for (let i = 0; i < segmentsToTranslate.length; i += BATCH_SIZE) {
       const batch = segmentsToTranslate.slice(i, i + BATCH_SIZE)
       const batchNumber = Math.floor(i / BATCH_SIZE) + 1
-      const translations = await translateBatch(batch, batchNumber, totalBatches)
+      
+      // 获取上下文
+      const contextBefore = segmentsToTranslate.slice(
+        Math.max(0, i - CONTEXT_WINDOW), 
+        i
+      )
+      const contextAfter = segmentsToTranslate.slice(
+        i + BATCH_SIZE, 
+        Math.min(segmentsToTranslate.length, i + BATCH_SIZE + CONTEXT_WINDOW)
+      )
+      
+      const translations = await translateBatch(batch, batchNumber, totalBatches, contextBefore, contextAfter)
       allTranslations.push(...translations)
     }
 

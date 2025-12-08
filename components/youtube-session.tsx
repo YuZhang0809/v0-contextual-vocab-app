@@ -111,8 +111,8 @@ export function YouTubeSession() {
     
     if (indicesToTranslate.length === 0) return;
     
-    const actualStart = Math.min(...indicesToTranslate);
-    const actualEnd = Math.max(...indicesToTranslate) + 1;
+    // 只发送需要翻译的段落（不是全部 transcript）
+    const segmentsToTranslate = indicesToTranslate.map(idx => transcript[idx]);
     
     // 标记为加载中
     setTranscript(prev => prev.map((seg, idx) => 
@@ -121,6 +121,9 @@ export function YouTubeSession() {
         : seg
     ));
     
+    // 用于追踪已接收的翻译数量
+    let translationsReceived = 0;
+    
     try {
       abortControllerRef.current = new AbortController();
       
@@ -128,9 +131,8 @@ export function YouTubeSession() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          segments: transcript,
-          startIndex: actualStart,
-          endIndex: actualEnd,
+          segments: segmentsToTranslate,  // 只发送需要翻译的段落
+          startIndex: 0,  // 从 0 开始，因为 segmentsToTranslate 是独立的数组
           stream: true,
         }),
         signal: abortControllerRef.current.signal,
@@ -166,18 +168,23 @@ export function YouTubeSession() {
                   percentage: Math.round((event.batch / event.totalBatches) * 100),
                 });
               } else if (event.type === 'data') {
-                // 更新翻译结果
-                setTranscript(prev => prev.map((seg, idx) => {
-                  const relativeIdx = idx - event.startIndex;
-                  if (relativeIdx >= 0 && relativeIdx < event.translations.length) {
-                    return {
-                      ...seg,
-                      translation: event.translations[relativeIdx],
-                      translationStatus: 'done' as const,
-                    };
-                  }
-                  return seg;
-                }));
+                // 使用 indicesToTranslate 数组正确映射翻译结果
+                const batchStartOffset = translationsReceived;
+                setTranscript(prev => {
+                  const newTranscript = [...prev];
+                  event.translations.forEach((translation: string, i: number) => {
+                    const actualIdx = indicesToTranslate[batchStartOffset + i];
+                    if (actualIdx !== undefined && newTranscript[actualIdx]) {
+                      newTranscript[actualIdx] = {
+                        ...newTranscript[actualIdx],
+                        translation,
+                        translationStatus: 'done' as const,
+                      };
+                    }
+                  });
+                  return newTranscript;
+                });
+                translationsReceived += event.translations.length;
               } else if (event.type === 'done') {
                 console.log(`Translation complete: ${event.totalTranslated} segments`);
               } else if (event.type === 'error') {

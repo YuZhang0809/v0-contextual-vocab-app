@@ -21,6 +21,19 @@ interface TranscriptViewProps {
   showTranslation?: boolean;
 }
 
+// 检测文本是否以句末标点结尾
+const endsWithSentence = (text: string): boolean => {
+  const trimmed = text.trim();
+  return /[.!?。！？][\s"'）)]*$/.test(trimmed);
+};
+
+// 检测文本是否以句首开始（前一个块以句末结尾，或是第一个块）
+const startsNewSentence = (transcript: TranscriptSegment[], index: number): boolean => {
+  if (index === 0) return true;
+  const prevText = transcript[index - 1]?.text || '';
+  return endsWithSentence(prevText);
+};
+
 export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, showTranslation = false }: TranscriptViewProps) {
   const activeSegmentRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -157,39 +170,59 @@ export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, s
           const hasTranslation = !!segment.translation;
           const isError = segment.translationStatus === 'error';
           
+          // 视觉连接逻辑
+          const isNewSentence = startsNewSentence(transcript, index);
+          const continuesSentence = !isNewSentence;
+          const endsSentence = endsWithSentence(segment.text || '');
+          
           return (
             <div
               key={index}
               ref={isActive ? activeSegmentRef : null}
               className={cn(
-                "transition-all duration-300 rounded-lg px-3 py-2 group",
+                "transition-all duration-300 group",
+                // 如果是句子延续，减少顶部间距
+                continuesSentence ? "mt-0 pt-0.5" : "mt-3 first:mt-0",
+                // 如果不是句子结尾，减少底部间距
+                !endsSentence ? "mb-0 pb-0.5" : "mb-0 pb-2",
+                // 左侧边距保持一致
+                "px-3",
+                // 当前活跃段落高亮
                 isActive 
-                  ? "bg-primary/10 border-l-2 border-primary shadow-sm" 
-                  : "hover:bg-secondary/50"
+                  ? "bg-primary/10 border-l-2 border-primary shadow-sm rounded-lg" 
+                  : "hover:bg-secondary/30 rounded-lg"
               )}
             >
-              {/* 时间戳和跳转按钮 */}
-              <div className="flex items-center gap-2 mb-1">
-                {onSeek && (
-                  <button
-                    onClick={() => onSeek(timeInSeconds)}
-                    className={cn(
-                      "flex items-center gap-1 text-xs px-1.5 py-0.5 rounded transition-all",
-                      isActive 
-                        ? "bg-primary/20 text-primary" 
-                        : "text-muted-foreground/60 hover:bg-primary/10 hover:text-primary opacity-0 group-hover:opacity-100"
-                    )}
-                    title={`跳转到 ${timeLabel}`}
-                  >
-                    <Play className="h-3 w-3" />
-                    <span>{timeLabel}</span>
-                  </button>
-                )}
-              </div>
+              {/* 时间戳 - 只在新句子开头显示，或者当前活跃时显示 */}
+              {(isNewSentence || isActive) && (
+                <div className="flex items-center gap-2 mb-0.5">
+                  {onSeek && (
+                    <button
+                      onClick={() => onSeek(timeInSeconds)}
+                      className={cn(
+                        "flex items-center gap-1 text-xs px-1.5 py-0.5 rounded transition-all",
+                        isActive 
+                          ? "bg-primary/20 text-primary" 
+                          : "text-muted-foreground/60 hover:bg-primary/10 hover:text-primary",
+                        // 非句首的时间戳更透明
+                        !isNewSentence && "opacity-50"
+                      )}
+                      title={`跳转到 ${timeLabel}`}
+                    >
+                      <Play className="h-3 w-3" />
+                      <span>{timeLabel}</span>
+                    </button>
+                  )}
+                </div>
+              )}
               
               {/* 英文原文 - 支持选择短语或点击单词 */}
               <p 
-                className="text-base leading-relaxed select-text cursor-text"
+                className={cn(
+                  "text-base leading-relaxed select-text cursor-text",
+                  // 非句首的文本稍微缩进，视觉上表示延续
+                  continuesSentence && "pl-0"
+                )}
                 onMouseUp={(e) => handleTextInteraction(e, index)}
               >
                 {(segment.text || '').split(' ').map((word, wIndex) => (
@@ -206,17 +239,18 @@ export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, s
                 ))}
               </p>
               
-              {/* 提示文字 */}
-              {isActive && (
+              {/* 提示文字 - 只在活跃且是句子开头时显示 */}
+              {isActive && isNewSentence && (
                 <div className="text-[10px] text-muted-foreground/50 mt-1">
                   点击单词查词 · 拖拽选择短语
                 </div>
               )}
               
-              {/* 翻译区域 */}
+              {/* 翻译区域 - 只在句子结尾显示完整翻译，中间段落显示省略 */}
               {showTranslation && (
                 <div className={cn(
-                  "mt-1.5 min-h-[1.25rem] transition-all duration-200",
+                  "min-h-[1rem] transition-all duration-200",
+                  endsSentence ? "mt-1" : "mt-0.5",
                   isActive ? "text-primary/80" : "text-muted-foreground/70"
                 )}>
                   {isLoading ? (
@@ -227,11 +261,17 @@ export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, s
                   ) : isError ? (
                     <span className="text-xs text-destructive/70">翻译失败</span>
                   ) : hasTranslation ? (
-                    <p className="text-sm leading-relaxed animate-in fade-in duration-300">
+                    <p className={cn(
+                      "text-sm leading-relaxed animate-in fade-in duration-300",
+                      // 非句子结尾的翻译稍微透明
+                      !endsSentence && "text-muted-foreground/50 text-xs"
+                    )}>
                       {segment.translation}
                     </p>
                   ) : (
-                    <span className="text-xs text-muted-foreground/30">等待翻译...</span>
+                    <span className="text-xs text-muted-foreground/30">
+                      {endsSentence ? "等待翻译..." : "..."}
+                    </span>
                   )}
                 </div>
               )}

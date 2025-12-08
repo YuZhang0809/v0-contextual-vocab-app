@@ -33,8 +33,8 @@ export default function HomePage() {
   // 认证加载中
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
@@ -46,7 +46,7 @@ export default function HomePage() {
 
   // 已登录，显示主应用
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       {currentView !== "review" && (
         <AppHeader currentView={currentView} onViewChange={setCurrentView} dueCount={dueCount} />
       )}

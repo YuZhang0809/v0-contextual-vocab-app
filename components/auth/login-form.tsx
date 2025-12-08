@@ -47,20 +47,20 @@ export function LoginForm() {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted/20 p-4">
-      <Card className="w-full max-w-md border-border/50 shadow-xl">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Card className="w-full max-w-md border-border/30 shadow-2xl bg-card/80 backdrop-blur-xl">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/20 flex items-center justify-center shadow-lg shadow-primary/10">
             <BookOpen className="h-8 w-8 text-primary" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-bold">ContextVocab</CardTitle>
+            <CardTitle className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">ContextVocab</CardTitle>
             <CardDescription className="mt-2">
               {isSignUp ? "创建账户开始你的学习之旅" : "登录以同步你的学习进度"}
             </CardDescription>
@@ -70,7 +70,7 @@ export function LoginForm() {
           {/* Google 登录 */}
           <Button
             variant="outline"
-            className="w-full h-12 gap-3 text-base"
+            className="w-full h-12 gap-3 text-base border-border/50 hover:bg-secondary/50 hover:border-border transition-all duration-200"
             onClick={handleGoogleLogin}
             disabled={loading}
           >
@@ -101,17 +101,17 @@ export function LoginForm() {
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border/50" />
+              <span className="w-full border-t border-border/30" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">或使用邮箱</span>
+              <span className="bg-card/80 px-3 text-muted-foreground">或使用邮箱</span>
             </div>
           </div>
 
           {/* Email 登录表单 */}
           <form onSubmit={handleEmailAuth} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">邮箱地址</Label>
+              <Label htmlFor="email" className="text-sm font-medium">邮箱地址</Label>
               <Input
                 id="email"
                 type="email"
@@ -120,10 +120,11 @@ export function LoginForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
+                className="h-11 bg-secondary/50 border-border/50 focus:border-primary/50 transition-colors"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
+              <Label htmlFor="password" className="text-sm font-medium">密码</Label>
               <Input
                 id="password"
                 type="password"
@@ -133,22 +134,27 @@ export function LoginForm() {
                 required
                 minLength={6}
                 disabled={loading}
+                className="h-11 bg-secondary/50 border-border/50 focus:border-primary/50 transition-colors"
               />
             </div>
 
             {error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg">
                 {error}
               </div>
             )}
 
             {message && (
-              <div className="p-3 text-sm text-green-600 bg-green-500/10 rounded-md">
+              <div className="p-3 text-sm text-success bg-success/10 border border-success/20 rounded-lg">
                 {message}
               </div>
             )}
 
-            <Button type="submit" className="w-full h-11" disabled={loading}>
+            <Button 
+              type="submit" 
+              className="w-full h-11 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/30" 
+              disabled={loading}
+            >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : isSignUp ? (
@@ -165,7 +171,7 @@ export function LoginForm() {
             </span>{" "}
             <button
               type="button"
-              className="text-primary hover:underline font-medium"
+              className="text-primary hover:text-primary/80 hover:underline font-medium transition-colors"
               onClick={() => {
                 setIsSignUp(!isSignUp)
                 setError(null)
@@ -180,4 +186,3 @@ export function LoginForm() {
     </div>
   )
 }
-

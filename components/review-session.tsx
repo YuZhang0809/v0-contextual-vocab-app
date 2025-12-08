@@ -68,16 +68,16 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
   // Session complete state
   if (sessionUnits.length === 0 || currentIndex >= sessionUnits.length) {
     return (
-      <Card className="max-w-md mx-auto border-border/50">
+      <Card className="max-w-md mx-auto border-success/30 bg-gradient-to-br from-success/10 to-transparent">
         <CardContent className="p-8 text-center space-y-6">
-          <div className="w-16 h-16 mx-auto rounded-full bg-success/10 flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-success/20 to-success/5 border border-success/20 flex items-center justify-center shadow-lg shadow-success/10">
             <CheckCircle2 className="h-8 w-8 text-success" />
           </div>
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">复习完成！</h2>
-            <p className="text-muted-foreground">你已完成 {reviewedCount} 个语境的复习</p>
+            <p className="text-muted-foreground">你已完成 <span className="text-success font-medium">{reviewedCount}</span> 个语境的复习</p>
           </div>
-          <Button onClick={onExit} className="gap-2">
+          <Button onClick={onExit} className="gap-2 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
             <ArrowLeft className="h-4 w-4" />
             返回首页
           </Button>
@@ -90,12 +90,12 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={onExit} className="gap-2">
+        <Button variant="ghost" onClick={onExit} className="gap-2 hover:bg-secondary/50">
           <ArrowLeft className="h-4 w-4" />
           退出复习
         </Button>
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-secondary/50 px-3 py-1.5 rounded-lg border border-border/30">
             <Switch
               id="review-mode"
               checked={mode === "flashcard"}
@@ -103,13 +103,13 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
             />
             <Label htmlFor="review-mode" className="text-sm cursor-pointer">
               {mode === "cloze" ? (
-                <span className="flex items-center gap-1">
-                  <Layers className="h-4 w-4" />
+                <span className="flex items-center gap-1.5">
+                  <Layers className="h-4 w-4 text-primary" />
                   挖空模式
                 </span>
               ) : (
-                <span className="flex items-center gap-1">
-                  <BookOpen className="h-4 w-4" />
+                <span className="flex items-center gap-1.5">
+                  <BookOpen className="h-4 w-4 text-accent" />
                   闪卡模式
                 </span>
               )}
@@ -122,11 +122,11 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">
-            进度: {currentIndex + 1} / {totalUnits}
+            进度: <span className="text-foreground font-medium">{currentIndex + 1}</span> / {totalUnits}
           </span>
-          <Badge variant="secondary">已复习: {reviewedCount}</Badge>
+          <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">已复习: {reviewedCount}</Badge>
         </div>
-        <Progress value={progress} className="h-2" />
+        <Progress value={progress} className="h-2 bg-secondary" />
       </div>
 
       {/* Review Card - 传递 ReviewUnit */}

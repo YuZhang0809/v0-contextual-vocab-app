@@ -154,24 +154,24 @@ export function Dashboard({ onStartReview }: DashboardProps) {
     <div className="space-y-6">
       {/* Stats Overview - 基于语境统计 */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <Card className="border-border/50">
+        <Card className="border-primary/20 hover:border-primary/40">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
                 <Clock className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{dueCount}</p>
+                <p className="text-2xl font-bold text-primary">{dueCount}</p>
                 <p className="text-sm text-muted-foreground">待复习语境</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-border/50">
+        <Card className="border-border/30">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-secondary">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-secondary to-secondary/50 border border-border/30">
                 <BookOpen className="h-5 w-5 text-secondary-foreground" />
               </div>
               <div>
@@ -182,28 +182,28 @@ export function Dashboard({ onStartReview }: DashboardProps) {
           </CardContent>
         </Card>
 
-        <Card className="border-border/50">
+        <Card className="border-accent/20 hover:border-accent/40">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-warning/10">
-                <BookOpen className="h-5 w-5 text-warning" />
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-accent/20 to-accent/5 border border-accent/20">
+                <BookOpen className="h-5 w-5 text-accent" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.learningCount}</p>
+                <p className="text-2xl font-bold text-accent">{stats.learningCount}</p>
                 <p className="text-sm text-muted-foreground">学习中</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-border/50">
+        <Card className="border-success/20 hover:border-success/40">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-success/10">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-success/20 to-success/5 border border-success/20">
                 <GraduationCap className="h-5 w-5 text-success" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.graduatedCount}</p>
+                <p className="text-2xl font-bold text-success">{stats.graduatedCount}</p>
                 <p className="text-sm text-muted-foreground">已掌握</p>
               </div>
             </div>
@@ -213,13 +213,13 @@ export function Dashboard({ onStartReview }: DashboardProps) {
 
       {/* Start Review Button */}
       {dueCount > 0 && (
-        <Card className="border-primary/30 bg-primary/5">
+        <Card className="border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-lg">开始复习</h3>
-              <p className="text-muted-foreground">你有 {dueCount} 个语境需要复习</p>
+              <h3 className="font-semibold text-lg text-primary">开始复习</h3>
+              <p className="text-muted-foreground">你有 <span className="text-primary font-medium">{dueCount}</span> 个语境需要复习</p>
             </div>
-            <Button onClick={onStartReview} size="lg" className="gap-2">
+            <Button onClick={onStartReview} size="lg" className="gap-2 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/30">
               <BookOpen className="h-5 w-5" />
               开始复习
             </Button>
@@ -228,13 +228,13 @@ export function Dashboard({ onStartReview }: DashboardProps) {
       )}
 
       {/* Word List */}
-      <Card className="border-border/50">
+      <Card className="border-border/30">
         <CardHeader className="space-y-4">
           <div className="flex items-center justify-between">
-            <CardTitle>词库管理</CardTitle>
+            <CardTitle className="text-lg">词库管理</CardTitle>
             <div className="flex gap-2">
-              <Badge variant="outline">{cards.length} 词</Badge>
-              <Badge variant="secondary">{stats.total} 语境</Badge>
+              <Badge variant="outline" className="border-primary/30 text-primary">{cards.length} 词</Badge>
+              <Badge variant="secondary" className="bg-secondary/80">{stats.total} 语境</Badge>
             </div>
           </div>
           

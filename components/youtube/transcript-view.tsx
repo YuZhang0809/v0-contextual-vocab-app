@@ -193,28 +193,26 @@ export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, s
                   : "hover:bg-secondary/30 rounded-lg"
               )}
             >
-              {/* 时间戳 - 只在新句子开头显示，或者当前活跃时显示 */}
-              {(isNewSentence || isActive) && (
-                <div className="flex items-center gap-2 mb-0.5">
-                  {onSeek && (
-                    <button
-                      onClick={() => onSeek(timeInSeconds)}
-                      className={cn(
-                        "flex items-center gap-1 text-xs px-1.5 py-0.5 rounded transition-all",
-                        isActive 
-                          ? "bg-primary/20 text-primary" 
-                          : "text-muted-foreground/60 hover:bg-primary/10 hover:text-primary",
-                        // 非句首的时间戳更透明
-                        !isNewSentence && "opacity-50"
-                      )}
-                      title={`跳转到 ${timeLabel}`}
-                    >
-                      <Play className="h-3 w-3" />
-                      <span>{timeLabel}</span>
-                    </button>
-                  )}
-                </div>
-              )}
+              {/* 时间戳 - 所有段落都显示 */}
+              <div className="flex items-center gap-2 mb-0.5">
+                {onSeek && (
+                  <button
+                    onClick={() => onSeek(timeInSeconds)}
+                    className={cn(
+                      "flex items-center gap-1 text-xs px-1.5 py-0.5 rounded transition-all",
+                      isActive 
+                        ? "bg-primary/20 text-primary" 
+                        : "text-muted-foreground/60 hover:bg-primary/10 hover:text-primary opacity-0 group-hover:opacity-100",
+                      // 句首的时间戳始终可见
+                      isNewSentence && !isActive && "opacity-60 group-hover:opacity-100"
+                    )}
+                    title={`跳转到 ${timeLabel}`}
+                  >
+                    <Play className="h-3 w-3" />
+                    <span>{timeLabel}</span>
+                  </button>
+                )}
+              </div>
               
               {/* 英文原文 - 支持选择短语或点击单词 */}
               <p 

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Play, Loader2 } from "lucide-react";
@@ -23,6 +23,7 @@ interface TranscriptViewProps {
 
 export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, showTranslation = false }: TranscriptViewProps) {
   const activeSegmentRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Find active segment index
   const activeIndex = transcript.findIndex(
@@ -46,36 +47,32 @@ export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, s
   }, [activeIndex]);
 
   // 智能语境截取：基于句子边界 + 最小长度保证
-  const getContext = (currentIndex: number) => {
-    const MIN_CONTEXT_LENGTH = 80;  // 最小字符数
-    const MAX_CONTEXT_LENGTH = 350; // 最大字符数
-    const MAX_BLOCKS_EACH_SIDE = 5; // 每侧最多扩展的块数
+  const getContext = useCallback((currentIndex: number) => {
+    const MIN_CONTEXT_LENGTH = 80;
+    const MAX_CONTEXT_LENGTH = 350;
+    const MAX_BLOCKS_EACH_SIDE = 5;
     
-    // 句子结束标点（包括中英文）
     const sentenceEnders = /[.!?。！？][\s"'）)]*$/;
     
     let startIdx = currentIndex;
     let endIdx = currentIndex;
     
-    // 向前扩展，找到句子开始（前一块以句子结束符结尾）
     while (startIdx > 0 && startIdx > currentIndex - MAX_BLOCKS_EACH_SIDE) {
       const prevText = transcript[startIdx - 1]?.text?.trim() || "";
       if (sentenceEnders.test(prevText)) {
-        break; // 前一块是句子结尾，当前位置是新句子开始
+        break;
       }
       startIdx--;
     }
     
-    // 向后扩展，找到句子结束
     while (endIdx < transcript.length - 1 && endIdx < currentIndex + MAX_BLOCKS_EACH_SIDE) {
       const currentText = transcript[endIdx]?.text?.trim() || "";
       if (sentenceEnders.test(currentText)) {
-        break; // 当前块是句子结尾，停止扩展
+        break;
       }
       endIdx++;
     }
     
-    // 拼接语境
     const buildContext = (start: number, end: number) => {
       let result = "";
       for (let i = start; i <= end; i++) {
@@ -87,14 +84,12 @@ export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, s
     
     let context = buildContext(startIdx, endIdx);
     
-    // 如果语境太短，继续向两侧扩展直到满足最小长度
     while (context.length < MIN_CONTEXT_LENGTH) {
       const canExpandBack = startIdx > 0;
       const canExpandForward = endIdx < transcript.length - 1;
       
       if (!canExpandBack && !canExpandForward) break;
       
-      // 优先向后扩展（更符合阅读习惯）
       if (canExpandForward && (!canExpandBack || endIdx - currentIndex <= currentIndex - startIdx)) {
         endIdx++;
       } else if (canExpandBack) {
@@ -103,9 +98,7 @@ export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, s
       
       context = buildContext(startIdx, endIdx);
       
-      // 防止超出最大长度
       if (context.length > MAX_CONTEXT_LENGTH) {
-        // 截断到最后一个完整句子
         const lastSentenceEnd = context.search(/[.!?。！？][^.!?。！？]*$/);
         if (lastSentenceEnd > MIN_CONTEXT_LENGTH) {
           context = context.substring(0, lastSentenceEnd + 1);
@@ -115,11 +108,39 @@ export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, s
     }
     
     return context;
-  };
+  }, [transcript]);
+
+  // 处理文本选择或单词点击
+  const handleTextInteraction = useCallback((e: React.MouseEvent, segmentIndex: number) => {
+    e.stopPropagation();
+    
+    // 获取选中的文本
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim();
+    
+    if (selectedText && selectedText.length > 0) {
+      // 用户选择了文本（短语）
+      const cleanPhrase = selectedText.replace(/[^\w\s'-]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (cleanPhrase.length > 0) {
+        onWordClick(cleanPhrase, getContext(segmentIndex));
+        // 清除选择
+        selection?.removeAllRanges();
+      }
+    } else {
+      // 用户点击了单个位置，尝试获取点击的单词
+      const target = e.target as HTMLElement;
+      if (target.dataset.word) {
+        const cleanWord = target.dataset.word.replace(/[^\w\s'-]/g, '');
+        if (cleanWord.length > 0) {
+          onWordClick(cleanWord, getContext(segmentIndex));
+        }
+      }
+    }
+  }, [getContext, onWordClick]);
 
   return (
     <ScrollArea className="h-[400px] w-full rounded-xl border border-border/30 bg-card/50 backdrop-blur-sm p-4">
-      <div className="space-y-3">
+      <div className="space-y-3" ref={containerRef}>
         {transcript.length === 0 && (
           <div className="text-center text-muted-foreground py-8">
             暂无字幕或正在加载...
@@ -166,18 +187,17 @@ export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, s
                 )}
               </div>
               
-              {/* 英文原文 */}
-              <p className="text-base leading-relaxed">
+              {/* 英文原文 - 支持选择短语或点击单词 */}
+              <p 
+                className="text-base leading-relaxed select-text cursor-text"
+                onMouseUp={(e) => handleTextInteraction(e, index)}
+              >
                 {(segment.text || '').split(' ').map((word, wIndex) => (
                   <span
                     key={wIndex}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const cleanWord = word.replace(/[^\w\s'-]/g, '');
-                      onWordClick(cleanWord, getContext(index));
-                    }}
+                    data-word={word}
                     className={cn(
-                      "cursor-pointer hover:bg-primary/20 hover:text-primary rounded px-0.5 transition-colors",
+                      "hover:bg-primary/20 hover:text-primary rounded px-0.5 transition-colors cursor-pointer",
                       isActive ? "text-foreground" : "text-muted-foreground"
                     )}
                   >
@@ -185,6 +205,13 @@ export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, s
                   </span>
                 ))}
               </p>
+              
+              {/* 提示文字 */}
+              {isActive && (
+                <div className="text-[10px] text-muted-foreground/50 mt-1">
+                  点击单词查词 · 拖拽选择短语
+                </div>
+              )}
               
               {/* 翻译区域 */}
               {showTranslation && (

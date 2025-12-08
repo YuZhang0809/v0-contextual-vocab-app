@@ -442,7 +442,7 @@ export function YouTubeSession() {
       
       const transcriptData = await transcriptRes.json();
       
-      // 应用部分缓存（如果有）
+      // 应用部分缓存（如果有）- 不自动显示，让用户选择
       if (cachedTranslations && Object.keys(cachedTranslations).length > 0) {
         const cachedCount = Object.keys(cachedTranslations).length;
         setTranscript(transcriptData.transcript.map((seg: TranscriptSegment, idx: number) => {
@@ -459,8 +459,9 @@ export function YouTubeSession() {
             translationStatus: 'pending' as const,
           };
         }));
-        setShowTranslation(true);
-        console.log(`Loaded ${cachedCount}/${transcriptData.transcript.length} translations from cache`);
+        // 方案C：不自动显示翻译，让用户主动选择
+        // setShowTranslation(true);
+        console.log(`Loaded ${cachedCount}/${transcriptData.transcript.length} translations from cache (not auto-shown)`);
       } else {
         // 初始化字幕状态（无翻译）
         setTranscript(transcriptData.transcript.map((seg: TranscriptSegment) => ({
@@ -731,14 +732,20 @@ export function YouTubeSession() {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    {/* 缓存状态标识 */}
-                    {cacheStatus === 'cached' && translatedCount === totalCount && (
-                      <Badge variant="outline" className="text-[10px] border-success/30 text-success bg-success/5">
+                    {/* 缓存数量提示 */}
+                    {cacheStatus === 'cached' && translatedCount > 0 && !showTranslation && (
+                      <span className="text-[10px] text-muted-foreground">
+                        已缓存 {translatedCount} 条
+                      </span>
+                    )}
+                    {/* 完全缓存标识 */}
+                    {cacheStatus === 'cached' && translatedCount === totalCount && showTranslation && (
+                      <Badge variant="outline" className="text-[10px] border-green-500/30 text-green-500 bg-green-500/5">
                         已缓存
                       </Badge>
                     )}
-                    {/* 翻译进度 */}
-                    {translatedCount < totalCount && (
+                    {/* 翻译进度（显示翻译时） */}
+                    {showTranslation && translatedCount < totalCount && (
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{translatedCount}/{totalCount}</span>
                         <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">

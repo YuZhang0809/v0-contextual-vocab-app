@@ -153,7 +153,7 @@ export function TranscriptView({ transcript, currentTime, onWordClick, onSeek, s
 
   return (
     <ScrollArea className="h-[400px] w-full rounded-xl border border-border/30 bg-card/50 backdrop-blur-sm p-4">
-      <div className="space-y-3" ref={containerRef}>
+      <div className="flex flex-col" ref={containerRef}>
         {transcript.length === 0 && (
           <div className="text-center text-muted-foreground py-8">
             暂无字幕或正在加载...

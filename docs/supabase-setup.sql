@@ -3,9 +3,10 @@
 -- DO NOT MODIFY DATABASE STRUCTURE WITHOUT UPDATING THIS FILE
 -- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
--- ContextVocab 数据库初始化脚本 (v4 - YouTube Archive)
+-- ContextVocab 数据库初始化脚本 (v5 - Tags Support)
 -- 在 Supabase SQL Editor 中运行此脚本
 -- 注意：如果你已有旧版表结构，请先删除旧表：
+--   DROP TABLE IF EXISTS user_tags;
 --   DROP TABLE IF EXISTS watch_sessions;
 --   DROP TABLE IF EXISTS word_cards;
 
@@ -16,7 +17,7 @@ CREATE TABLE IF NOT EXISTS word_cards (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   word TEXT NOT NULL,
   -- contexts: JSONB 数组，每个元素包含独立的 SRS 进度
-  -- 结构: { sentence, meaning_cn, sentence_translation?, source?, added_at, 
+  -- 结构: { sentence, meaning_cn, sentence_translation?, source?, tags?, added_at, 
   --         review_status, interval, ease_factor, repetition, next_review_at }
   contexts JSONB NOT NULL DEFAULT '[]'::jsonb,
   mnemonics TEXT,
@@ -96,19 +97,52 @@ CREATE POLICY "Users can update own sessions" ON watch_sessions
 CREATE POLICY "Users can delete own sessions" ON watch_sessions
   FOR DELETE USING (auth.uid() = user_id);
 
+-- ============================================================
+-- 9. 创建 user_tags 表 (用户自定义标签)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_tags (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,                       -- 标签名称
+  color TEXT,                               -- 可选：标签颜色 (hex 格式，如 #FF5733)
+  created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT,
+  -- 每个用户的标签名唯一
+  UNIQUE(user_id, name)
+);
+
+-- 10. 创建 user_tags 索引
+CREATE INDEX IF NOT EXISTS idx_user_tags_user_id ON user_tags(user_id);
+
+-- 11. 启用 user_tags 的 RLS
+ALTER TABLE user_tags ENABLE ROW LEVEL SECURITY;
+
+-- 12. 创建 user_tags 的 RLS 策略
+CREATE POLICY "Users can view own tags" ON user_tags
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own tags" ON user_tags
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own tags" ON user_tags
+  FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own tags" ON user_tags
+  FOR DELETE USING (auth.uid() = user_id);
+
 -- 完成！
 -- 
 -- ============================================================
 -- 数据示例
 -- ============================================================
 --
--- contexts 字段示例 (v4 - 支持 VideoSource 格式):
+-- contexts 字段示例 (v5 - 支持 Tags):
 -- [
 --   {
 --     "sentence": "I need to go to the bank to deposit money.",
 --     "meaning_cn": "银行",
 --     "sentence_translation": "我需要去银行存钱。",
 --     "source": "capture",
+--     "tags": ["Business"],
 --     "added_at": 1701849600000,
 --     "review_status": "learning",
 --     "interval": 86400000,
@@ -126,6 +160,7 @@ CREATE POLICY "Users can delete own sessions" ON watch_sessions
 --       "video_id": "dQw4w9WgXcQ",
 --       "timestamp": 125
 --     },
+--     "tags": ["Academic", "Geography"],
 --     "added_at": 1701936000000,
 --     "review_status": "new",
 --     "interval": 0,
@@ -134,6 +169,15 @@ CREATE POLICY "Users can delete own sessions" ON watch_sessions
 --     "next_review_at": 1701936000000
 --   }
 -- ]
+--
+-- user_tags 示例:
+-- {
+--   "id": "tag-uuid",
+--   "user_id": "user-uuid",
+--   "name": "Geography",
+--   "color": "#3B82F6",
+--   "created_at": 1701936000000
+-- }
 --
 -- watch_sessions 示例:
 -- {

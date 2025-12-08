@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, Search, Youtube, Plus, Check, X, Layers, Languages, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Search, Youtube, Plus, Check, X, Layers, Languages, Eye, EyeOff, Tag } from 'lucide-react';
 import { useCards } from '@/hooks/use-cards';
 import { createWatchSession, updateWatchSession, fetchVideoMetadata } from '@/hooks/use-watch-sessions';
 import { WatchSession, VideoSource } from '@/lib/types';
+import { TagSelector } from '@/components/ui/tag-selector';
 
 interface TranscriptSegment {
   text: string;
@@ -64,6 +65,7 @@ export function YouTubeSession() {
   
   const { addCard } = useCards();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const extractVideoId = (inputUrl: string) => {
     const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
@@ -188,6 +190,7 @@ export function YouTubeSession() {
       setShowAnalysis(true);
       setSaveStatus(null);
       setAnalysisResult(null);
+      setSelectedTags([]);  // 重置标签选择
 
       try {
           const res = await fetch('/api/analyze', {
@@ -255,6 +258,7 @@ export function YouTubeSession() {
               meaning_cn: analysisResult.meaning,
               sentence_translation: analysisResult.example_sentence_translation,
               source,
+              tags: selectedTags.length > 0 ? selectedTags : undefined,
           });
           
           if (result.isNew) {
@@ -470,6 +474,20 @@ export function YouTubeSession() {
                                                     {analysisResult.example_sentence_translation}
                                                 </div>
                                             )}
+                                        </div>
+                                        
+                                        {/* 标签选择器 */}
+                                        <div className="space-y-2">
+                                            <div className="text-xs font-medium text-muted-foreground uppercase flex items-center gap-1">
+                                                <Tag className="h-3 w-3" />
+                                                标签（可选）
+                                            </div>
+                                            <TagSelector
+                                                selectedTags={selectedTags}
+                                                onChange={setSelectedTags}
+                                                disabled={saveStatus !== null}
+                                                compact
+                                            />
                                         </div>
                                     </>
                                 ) : (

@@ -17,10 +17,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { BookOpen, Clock, GraduationCap, Trash2, Search, Volume2, Layers } from "lucide-react"
+import { BookOpen, Clock, GraduationCap, Trash2, Search, Volume2, Layers, Tag, X } from "lucide-react"
 import { useCards, useDueContexts } from "@/hooks/use-cards"
+import { useTags } from "@/hooks/use-tags"
 import { getContextStats } from "@/lib/sm2"
 import type { WordCard, CardStatus } from "@/lib/types"
+import { TagDisplay } from "@/components/ui/tag-selector"
 
 interface DashboardProps {
   onStartReview: () => void
@@ -29,7 +31,9 @@ interface DashboardProps {
 export function Dashboard({ onStartReview }: DashboardProps) {
   const { cards, removeCard } = useCards()
   const { dueCount } = useDueContexts()
+  const { allTags } = useTags()
   const [searchQuery, setSearchQuery] = useState("")
+  const [selectedFilterTag, setSelectedFilterTag] = useState<string | null>(null)
 
   // 基于语境的统计
   const stats = getContextStats(cards)
@@ -72,8 +76,27 @@ export function Dashboard({ onStartReview }: DashboardProps) {
     return { label: "复习中", variant: "primary" }
   }
 
+  // 获取所有使用过的标签（统计）
+  const usedTags = new Map<string, number>()
+  cards.forEach(card => {
+    card.contexts?.forEach(ctx => {
+      ctx.tags?.forEach(tag => {
+        usedTags.set(tag, (usedTags.get(tag) || 0) + 1)
+      })
+    })
+  })
+
   const filteredCards = cards.filter((card) => {
+    // 标签筛选
+    if (selectedFilterTag) {
+      const hasTag = card.contexts?.some(ctx => ctx.tags?.includes(selectedFilterTag))
+      if (!hasTag) return false
+    }
+    
+    // 搜索
     const query = searchQuery.toLowerCase()
+    if (!query) return true
+    
     if (card.word.toLowerCase().includes(query)) return true
     
     // 搜索所有语境
@@ -206,7 +229,7 @@ export function Dashboard({ onStartReview }: DashboardProps) {
 
       {/* Word List */}
       <Card className="border-border/50">
-        <CardHeader>
+        <CardHeader className="space-y-4">
           <div className="flex items-center justify-between">
             <CardTitle>词库管理</CardTitle>
             <div className="flex gap-2">
@@ -214,14 +237,50 @@ export function Dashboard({ onStartReview }: DashboardProps) {
               <Badge variant="secondary">{stats.total} 语境</Badge>
             </div>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="搜索单词、句子或释义..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+          
+          {/* 搜索和筛选 */}
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="搜索单词、句子或释义..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            
+            {/* 标签筛选器 */}
+            {usedTags.size > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Tag className="h-3 w-3" />
+                  标签筛选:
+                </span>
+                {Array.from(usedTags.entries()).map(([tag, count]) => (
+                  <Badge
+                    key={tag}
+                    variant={selectedFilterTag === tag ? "default" : "outline"}
+                    className="cursor-pointer text-xs gap-1 transition-all hover:scale-105"
+                    onClick={() => setSelectedFilterTag(selectedFilterTag === tag ? null : tag)}
+                  >
+                    {tag}
+                    <span className="opacity-60">({count})</span>
+                  </Badge>
+                ))}
+                {selectedFilterTag && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setSelectedFilterTag(null)}
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    清除筛选
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -269,9 +328,14 @@ export function Dashboard({ onStartReview }: DashboardProps) {
                             <p className="text-sm text-muted-foreground line-clamp-1">
                               {firstContext?.sentence || "无例句"}
                             </p>
-                            <p className="text-sm font-medium">
-                              {firstContext?.meaning_cn || "无释义"}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium">
+                                {firstContext?.meaning_cn || "无释义"}
+                              </p>
+                              {firstContext?.tags && firstContext.tags.length > 0 && (
+                                <TagDisplay tags={firstContext.tags} className="opacity-80" />
+                              )}
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell>{getStatusBadge(cardStatus)}</TableCell>

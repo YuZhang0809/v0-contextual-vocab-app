@@ -42,6 +42,7 @@ import type { WordCard, CardStatus, SourceType } from "@/lib/types"
 import { isVideoSource, getYouTubeLink } from "@/lib/types"
 import { formatDistanceToNow } from "date-fns"
 import { zhCN } from "date-fns/locale"
+import { TagDisplay } from "@/components/ui/tag-selector"
 
 export function VocabularyList() {
   const { cards, removeCard, removeContext } = useCards()
@@ -393,6 +394,13 @@ export function VocabularyList() {
                             <p className="text-sm text-muted-foreground pl-3 mb-3 border-l-2 border-muted">
                               {context.sentence_translation}
                             </p>
+                          )}
+
+                          {/* Tags */}
+                          {context.tags && context.tags.length > 0 && (
+                            <div className="pl-3 mb-3">
+                              <TagDisplay tags={context.tags} />
+                            </div>
                           )}
                           
                           {/* Context SRS Info */}

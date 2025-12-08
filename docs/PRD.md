@@ -6,7 +6,7 @@
 产品负责人	(您的名字)
 目标用户	沉浸式英语学习者 / 开发者本人
 平台	Desktop Web
-更新日期	2025-12-03
+更新日期	2025-12-08
 1. 项目背景与目标 (Background & Goals) 
 1.1 痛点分析
 当前市面上的背单词应用（如百词斩、Anki）存在以下问题：
@@ -69,6 +69,17 @@ F-09	评分反馈	底部提供 4 个按钮 (Again, Hard, Good, Easy)。	点击�
 ID	功能点	详细描述	验收标准
 F-10	状态概览	显示今日待复习卡片数量。	数字准确。
 F-11	词库列表	表格形式展示所有已录入单词。	支持简单的删除操作。
+F-12	标签筛选	支持按标签过滤词库列表。	点击标签可筛选，支持清除筛选。
+
+### 3.4 模块四：标签管理 (Tag Management)
+优先级：P1 (Should Have)
+
+| ID | 功能点 | 详细描述 | 验收标准 |
+|---|---|---|---|
+| F-13 | 预设标签 | 系统提供 Business/Academic/IT-Tech/Medical/Legal 五个预设标签。 | 预设标签始终可用，无法删除。 |
+| F-14 | 自定义标签 | 用户可创建自己的标签，存储在 `user_tags` 表中。 | 标签名对每个用户唯一。 |
+| F-15 | 语境标签 | 录入单词时可为每个语境选择一个或多个标签。 | 标签存储在 `context.tags` 数组中。 |
+| F-16 | 标签显示 | 词库详情页显示每个语境的标签。 | 标签以彩色徽章形式展示。 |
 4. 数据逻辑与算法 (Logic & Schema)
 4.1 数据库 Schema (TypeScript 定义)
 
@@ -83,6 +94,7 @@ export interface WordContext {
   meaning_cn: string            // 该语境下的中文释义
   sentence_translation?: string // 句子翻译
   source?: string               // 来源，如 "youtube:VIDEO_ID", "capture", "manual"
+  tags?: string[]               // 标签数组（预设或自定义）
   added_at: number              // 添加时间戳
   
   // 独立 SRS 字段 - 每个语境单独追踪复习进度

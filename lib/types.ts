@@ -3,6 +3,30 @@
 export type CardStatus = "new" | "learning" | "review" | "graduated"
 
 // ============================================================
+// 标签相关类型
+// ============================================================
+
+// 预设标签常量
+export const PRESET_TAGS = [
+  "Business",
+  "Academic", 
+  "IT/Tech",
+  "Medical",
+  "Legal"
+] as const
+
+export type PresetTag = typeof PRESET_TAGS[number]
+
+// 用户自定义标签
+export interface UserTag {
+  id: string
+  user_id: string
+  name: string
+  color?: string  // 可选：标签颜色（hex 格式）
+  created_at: number
+}
+
+// ============================================================
 // YouTube 视频归档相关类型
 // ============================================================
 
@@ -42,6 +66,7 @@ export interface WordContext {
   meaning_cn: string            // 该语境下的中文释义
   sentence_translation?: string // 句子翻译
   source?: SourceType           // 来源：字符串或 VideoSource 对象
+  tags?: string[]               // 标签数组（预设或自定义）
   added_at: number              // 添加时间戳
   // 独立 SRS 字段 - 每个语境单独追踪复习进度
   review_status: CardStatus
@@ -82,6 +107,7 @@ export interface AddCardInput {
   meaning_cn: string
   sentence_translation?: string
   source?: SourceType           // 支持字符串或 VideoSource
+  tags?: string[]               // 标签数组
 }
 
 // ============================================================

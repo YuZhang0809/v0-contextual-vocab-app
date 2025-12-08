@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Sparkles, RotateCcw, Check, Plus, Layers } from "lucide-react"
+import { Loader2, Sparkles, RotateCcw, Check, Plus, Layers, Tag } from "lucide-react"
 import { useCards } from "@/hooks/use-cards"
 import { cn } from "@/lib/utils"
+import { TagSelector } from "@/components/ui/tag-selector"
 
 interface AnalysisItem {
   term: string
@@ -48,6 +49,9 @@ export function CaptureForm() {
   
   // Track processing state for assistive lookup per item
   const [lookupIndices, setLookupIndices] = useState<Set<number>>(new Set())
+
+  // Track selected tags for each item
+  const [itemTags, setItemTags] = useState<Map<number, string[]>>(new Map())
 
   // Refs for focusing inputs
   const itemRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -88,12 +92,14 @@ export function CaptureForm() {
 
     setSavingIndex(index)
     try {
+      const tags = itemTags.get(index) || []
       const result = await addCard({
         word: item.term,
         sentence: item.example_sentence,
         meaning_cn: item.meaning,
         sentence_translation: item.example_sentence_translation,  // 传递翻译
         source: "capture",
+        tags: tags.length > 0 ? tags : undefined,
       })
 
       setSavedStatuses((prev) => {
@@ -117,6 +123,15 @@ export function CaptureForm() {
     setAnalysisResult(null)
     setSavedStatuses(new Map())
     setEditedItems([])
+    setItemTags(new Map())
+  }
+
+  const handleItemTagsChange = (index: number, tags: string[]) => {
+    setItemTags(prev => {
+      const next = new Map(prev)
+      next.set(index, tags)
+      return next
+    })
   }
 
   const handleItemChange = (index: number, field: keyof AnalysisItem, value: string) => {
@@ -387,6 +402,20 @@ export function CaptureForm() {
                           {item.example_sentence_translation}
                         </p>
                       )}
+                    </div>
+
+                    {/* 标签选择器 */}
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-1.5">
+                        <Tag className="h-3.5 w-3.5" />
+                        标签（可选）
+                      </Label>
+                      <TagSelector
+                        selectedTags={itemTags.get(index) || []}
+                        onChange={(tags) => handleItemTagsChange(index, tags)}
+                        disabled={isSaved}
+                        compact
+                      />
                     </div>
                   </CardContent>
                   <CardFooter className="bg-secondary/10 py-3 flex justify-end gap-2">

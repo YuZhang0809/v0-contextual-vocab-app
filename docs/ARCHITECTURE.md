@@ -12,10 +12,16 @@ ContextVocab is a "Context-First" vocabulary learning application. Unlike tradit
 ## 2. Directory Structure (Key Paths)
 
 - `app/api/analyze/`: The AI Logic Core. Handles Prompt Engineering and LLM interaction.
+- `app/api/tags/`: Tag management API (GET/POST/DELETE user-defined tags).
+- `app/api/watch-sessions/`: YouTube watch session tracking API.
 - `lib/types.ts`: **Type SSOT**. All shared TypeScript interfaces.
 - `docs/supabase-setup.sql`: **Database SSOT**. The source of truth for DB Schema.
-- `components/vocabulary-list.tsx`: Main dashboard view.
+- `hooks/use-tags.ts`: Tag data management hook (preset + custom tags).
+- `components/ui/tag-selector.tsx`: Reusable tag selector component.
+- `components/vocabulary-list.tsx`: Main vocabulary detail view.
+- `components/dashboard.tsx`: Dashboard with stats and tag filtering.
 - `components/review-session.tsx`: The review game loop implementation.
+- `components/youtube-session.tsx`: YouTube immersive learning module.
 
 ## 3. AI Pipeline (DeepSeek Integration)
 
@@ -61,9 +67,9 @@ interface AnalysisResponse {
 }
 ```
 
-## 4. Database Architecture (v3 Context-Level SRS)
+## 4. Database Architecture (v5 Tags Support)
 
-We use a JSONB-heavy approach to allow a single word ("run") to have multiple contexts ("run a business" vs "run fast"), each with its own memory progress.
+We use a JSONB-heavy approach to allow a single word ("run") to have multiple contexts ("run a business" vs "run fast"), each with its own memory progress and tags.
 
 ### Table: `word_cards`
 
@@ -75,6 +81,20 @@ We use a JSONB-heavy approach to allow a single word ("run") to have multiple co
 | `mnemonics` | TEXT | Global mnemonics for the word |
 | `contexts` | JSONB | **CORE FIELD**. Array of `WordContext` objects. |
 
+### Table: `user_tags`
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID | Primary Key |
+| `user_id` | UUID | Foreign Key to `auth.users` |
+| `name` | TEXT | Tag name (unique per user) |
+| `color` | TEXT | Optional hex color code |
+| `created_at` | BIGINT | Unix timestamp |
+
+### Preset Tags (Hardcoded)
+The following tags are always available without database storage:
+- `Business`, `Academic`, `IT/Tech`, `Medical`, `Legal`
+
 ### JSONB Structure (`contexts` array)
 Each object in the array represents a learning context:
 
@@ -82,14 +102,34 @@ Each object in the array represents a learning context:
 {
   "sentence": "I need to run a test.",
   "meaning_cn": "运行 (测试)",
-  "review_status": "learning", // SRS State
-  "interval": 0,                 // SRS Interval (ms)
-  "ease_factor": 2.5,            // SRS Ease
-  "next_review_at": 1701936000000 // Sorting Key for Review Queue
+  "tags": ["IT/Tech", "Business"],  // Optional tag array
+  "review_status": "learning",      // SRS State
+  "interval": 0,                    // SRS Interval (ms)
+  "ease_factor": 2.5,               // SRS Ease
+  "next_review_at": 1701936000000   // Sorting Key for Review Queue
 }
 ```
 
 ## 5. Security & RLS
-- Row Level Security is ENABLED.
+- Row Level Security is ENABLED on all tables (`word_cards`, `watch_sessions`, `user_tags`).
 - Users can only SELECT, INSERT, UPDATE, DELETE rows where `user_id == auth.uid()`.
+
+## 6. Tag System Architecture
+
+### Data Flow
+1. **Preset Tags**: Hardcoded in `lib/types.ts` as `PRESET_TAGS` constant.
+2. **Custom Tags**: Stored in `user_tags` table, managed via `/api/tags` endpoint.
+3. **Tag Assignment**: Tags are stored in each `context.tags` array within `word_cards.contexts` JSONB.
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| GET | `/api/tags` | Fetch user's custom tags |
+| POST | `/api/tags` | Create a new custom tag |
+| DELETE | `/api/tags?id={id}` | Delete a custom tag |
+
+### Frontend Components
+- `TagSelector`: Multi-select component for choosing tags (used in capture/youtube forms).
+- `TagDisplay`: Read-only badge display for showing tags.
 

@@ -55,6 +55,7 @@ export function useCards() {
       meaning_cn: cardData.meaning_cn,
       sentence_translation: cardData.sentence_translation,
       source: cardData.source || "manual",
+      tags: cardData.tags,
       added_at: Date.now(),
       // 初始化 SRS 字段
       ...initContextSRS(),

@@ -76,7 +76,47 @@ export function useCards() {
     }
 
     if (existing) {
-      // 单词已存在，追加新语境
+      // 检查是否有重复或高度相似的语境
+      const isDuplicate = (existing.contexts || []).some((existingCtx: WordContext) => {
+        // 1. 精确匹配
+        if (existingCtx.sentence === newContext.sentence) {
+          return true;
+        }
+        
+        // 2. 子串检测（一个包含另一个）
+        const existingSentence = existingCtx.sentence.toLowerCase().trim();
+        const newSentence = newContext.sentence.toLowerCase().trim();
+        if (existingSentence.includes(newSentence) || newSentence.includes(existingSentence)) {
+          return true;
+        }
+        
+        // 3. YouTube 来源时间戳去重（同一视频 10 秒内视为重复）
+        if (
+          typeof existingCtx.source === 'object' && 
+          typeof newContext.source === 'object' &&
+          existingCtx.source.type === 'youtube' && 
+          newContext.source.type === 'youtube' &&
+          existingCtx.source.video_id === newContext.source.video_id
+        ) {
+          const timeDiff = Math.abs(
+            (existingCtx.source.timestamp || 0) - (newContext.source.timestamp || 0)
+          );
+          if (timeDiff <= 10) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
+
+      if (isDuplicate) {
+        // 语境重复，不追加，直接返回现有卡片
+        console.log(`语境重复，跳过追加: ${cardData.word}`);
+        mutate();
+        return { isNew: false, card: existing };
+      }
+
+      // 语境不重复，追加新语境
       const updatedContexts = [...(existing.contexts || []), newContext]
       
       const { data: updatedCard, error: updateError } = await supabase

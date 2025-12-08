@@ -223,6 +223,45 @@ export function YouTubeSession() {
     translateRange(startIdx, endIdx);
   }, [getCurrentSegmentIndex, transcript.length, translateRange]);
 
+  // 检查翻译缓存
+  const checkTranslationCache = useCallback(async (vid: string): Promise<string[] | null> => {
+    try {
+      setCacheStatus('checking');
+      const res = await fetch(`/api/youtube/translation-cache?video_id=${vid}`);
+      if (!res.ok) return null;
+      
+      const data = await res.json();
+      if (data.cached && data.translations) {
+        setCacheStatus('cached');
+        return data.translations;
+      }
+      setCacheStatus('none');
+      return null;
+    } catch (error) {
+      console.warn('Cache check failed:', error);
+      setCacheStatus('none');
+      return null;
+    }
+  }, []);
+
+  // 保存翻译到缓存
+  const saveTranslationCache = useCallback(async (vid: string, translations: string[]) => {
+    try {
+      await fetch('/api/youtube/translation-cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          video_id: vid,
+          translations,
+          segment_count: translations.length,
+        }),
+      });
+      console.log('Translation cache saved');
+    } catch (error) {
+      console.warn('Failed to save translation cache:', error);
+    }
+  }, []);
+
   // 翻译全部字幕
   const handleTranslateAll = async () => {
     if (transcript.length === 0 || translating || !videoId) return;
@@ -234,22 +273,6 @@ export function YouTubeSession() {
     
     setTranslating(false);
   };
-
-  // 监听翻译完成，自动保存缓存
-  useEffect(() => {
-    if (!videoId || transcript.length === 0 || cacheStatus === 'cached') return;
-    
-    // 检查是否所有字幕都已翻译
-    const allTranslated = transcript.every(seg => 
-      seg.translation && seg.translation !== '[翻译失败]' && seg.translation !== '[翻译缺失]'
-    );
-    
-    if (allTranslated) {
-      const translations = transcript.map(seg => seg.translation || '');
-      saveTranslationCache(videoId, translations);
-      setCacheStatus('cached');
-    }
-  }, [transcript, videoId, cacheStatus, saveTranslationCache]);
 
   // 智能翻译：从当前位置开始
   const handleSmartTranslate = () => {
@@ -281,44 +304,21 @@ export function YouTubeSession() {
     }
   }, [currentTime, showTranslation, transcript, getCurrentSegmentIndex, translateRange]);
 
-  // 检查翻译缓存
-  const checkTranslationCache = useCallback(async (videoId: string): Promise<string[] | null> => {
-    try {
-      setCacheStatus('checking');
-      const res = await fetch(`/api/youtube/translation-cache?video_id=${videoId}`);
-      if (!res.ok) return null;
-      
-      const data = await res.json();
-      if (data.cached && data.translations) {
-        setCacheStatus('cached');
-        return data.translations;
-      }
-      setCacheStatus('none');
-      return null;
-    } catch (error) {
-      console.warn('Cache check failed:', error);
-      setCacheStatus('none');
-      return null;
+  // 监听翻译完成，自动保存缓存
+  useEffect(() => {
+    if (!videoId || transcript.length === 0 || cacheStatus === 'cached') return;
+    
+    // 检查是否所有字幕都已翻译
+    const allTranslated = transcript.every(seg => 
+      seg.translation && seg.translation !== '[翻译失败]' && seg.translation !== '[翻译缺失]'
+    );
+    
+    if (allTranslated) {
+      const translations = transcript.map(seg => seg.translation || '');
+      saveTranslationCache(videoId, translations);
+      setCacheStatus('cached');
     }
-  }, []);
-
-  // 保存翻译到缓存
-  const saveTranslationCache = useCallback(async (videoId: string, translations: string[]) => {
-    try {
-      await fetch('/api/youtube/translation-cache', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          video_id: videoId,
-          translations,
-          segment_count: translations.length,
-        }),
-      });
-      console.log('Translation cache saved');
-    } catch (error) {
-      console.warn('Failed to save translation cache:', error);
-    }
-  }, []);
+  }, [transcript, videoId, cacheStatus, saveTranslationCache]);
 
   const handleLoadVideo = async () => {
     const id = extractVideoId(url);

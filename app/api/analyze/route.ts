@@ -13,7 +13,9 @@ const analysisSchema = z.object({
   }).optional().nullable().describe("Detailed analysis for complete sentences"),
   items: z.array(
     z.object({
-      term: z.string().describe("The target word or phrase (Lemma/Base form)"),
+      term: z.string().describe("The lemma/base form of the word (e.g., 'run' for 'running', 'child' for 'children')"),
+      original_form: z.string().describe("The original inflected form as it appears in the text (e.g., 'running', 'children')"),
+      part_of_speech: z.string().describe("Part of speech abbreviation: n.(noun), v.(verb), adj.(adjective), adv.(adverb), prep.(preposition), conj.(conjunction), pron.(pronoun), det.(determiner), interj.(interjection), phr.(phrase/idiom)"),
       context_segment: z.string().describe("The actual segment in the sentence that matches the term"),
       meaning: z.string().describe("Precise Chinese meaning in this specific context (max 15 chars)"),
       example_sentence: z.string().describe("If input was a word: a generated example sentence. If input was a sentence: the original sentence."),
@@ -62,14 +64,26 @@ Note: The provided context combines the target line with its preceding and follo
 - 用户点击 "break"，上下文含 "break down" → 分析 "break down"（分解/崩溃）
 - 用户点击 "figure"，上下文含 "figure out" → 分析 "figure out"（弄清楚）
 
+**重要：词形还原（Lemmatization）**
+无论是单词还是短语，都需要将其还原为原型/基本形式：
+- 复数 → 单数: children → child, mice → mouse, phenomena → phenomenon
+- 动词时态 → 原型: running/ran/runs → run, went/going/goes → go
+- 形容词比较级/最高级 → 原级: better/best → good, larger/largest → large
+- 分词 → 原型: broken → break, written → write
+
+**词性标注（Part of Speech）**
+使用标准缩写：n.(名词), v.(动词), adj.(形容词), adv.(副词), prep.(介词), conj.(连词), pron.(代词), det.(限定词), interj.(感叹词), phr.(短语/习语)
+
 Requirements:
 1. **First**: Check if "${focus_term}" is part of a phrasal verb, idiom, or collocation in the context.
-2. **If yes**: Analyze the COMPLETE phrase. Set 'term' to the full phrase (e.g., "take into account").
-3. **If no**: Analyze "${focus_term}" as a standalone word.
+2. **If yes**: Analyze the COMPLETE phrase. Set 'term' to the base form of the full phrase.
+3. **If no**: Analyze "${focus_term}" as a standalone word, reduced to its lemma.
 4. If context is missing or irrelevant, generate a new example sentence and explain it.
 5. **OUTPUT**:
    - Return exactly ONE item in the 'items' array.
-   - 'term': the identified complete phrase OR "${focus_term}" if standalone.
+   - 'term': the lemma/base form (e.g., "run" not "running", "child" not "children").
+   - 'original_form': the exact form as it appears in the text (e.g., "running", "children").
+   - 'part_of_speech': the appropriate abbreviation (e.g., "n.", "v.", "phr.").
    - 'meaning': concise Chinese meaning (max 15 chars).
    - 'example_sentence': the provided context (if valid) or the generated sentence.
    - 'example_sentence_translation': Chinese translation of the example_sentence (REQUIRED).
@@ -104,6 +118,16 @@ Logic:
      - 'nuance': Explain the tone, connotation, or why specific words were chosen.
      - 'cultural_background': Provide any relevant cultural context or background info (optional).
 
+**重要：词形还原（Lemmatization）**
+无论是单词还是短语，都需要将其还原为原型/基本形式：
+- 复数 → 单数: children → child, mice → mouse, phenomena → phenomenon
+- 动词时态 → 原型: running/ran/runs → run, went/going/goes → go
+- 形容词比较级/最高级 → 原级: better/best → good, larger/largest → large
+- 分词 → 原型: broken → break, written → write
+
+**词性标注（Part of Speech）**
+使用标准缩写：n.(名词), v.(动词), adj.(形容词), adv.(副词), prep.(介词), conj.(连词), pron.(代词), det.(限定词), interj.(感叹词), phr.(短语/习语)
+
 **翻译质量要求**:
 - 翻译必须准确传达原文的真实含义和语境，不要死板地逐字翻译
 - 如遇俚语、习语、隐喻，需解释其深层含义而非字面翻译
@@ -114,6 +138,9 @@ Logic:
 Constraints:
 - NO mnemonics.
 - Meaning must be concise (Chinese, max 15 chars).
+- 'term' must be the lemma/base form of the word (e.g., "run" not "running").
+- 'original_form' must be the exact inflected form as it appears in the sentence.
+- 'part_of_speech' must be filled with the appropriate abbreviation (n., v., adj., etc.).
 - 'context_segment' should be the exact text from the sentence.
 - 'example_sentence_translation' is REQUIRED for every item.
 `

@@ -24,6 +24,8 @@ interface TranscriptSegment {
 
 interface AnalysisItem {
   term: string;
+  original_form?: string;
+  part_of_speech?: string;
   context_segment: string;
   meaning: string;
   example_sentence: string;
@@ -815,9 +817,16 @@ export function YouTubeSession() {
               <div className="absolute inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
                 <Card className="w-full max-w-md shadow-2xl border-primary/20 bg-card/95 backdrop-blur animate-in slide-in-from-bottom-10 duration-300">
                   <CardHeader className="flex flex-row items-start justify-between pb-2">
-                    <CardTitle className="text-xl font-bold text-primary">
-                      {analyzing ? "AI 分析中..." : analysisResult?.term}
-                    </CardTitle>
+                    <div className="flex items-baseline gap-2">
+                      <CardTitle className="text-xl font-bold text-primary">
+                        {analyzing ? "AI 分析中..." : analysisResult?.term}
+                      </CardTitle>
+                      {!analyzing && analysisResult?.part_of_speech && (
+                        <span className="text-sm text-muted-foreground font-normal">
+                          {analysisResult.part_of_speech}
+                        </span>
+                      )}
+                    </div>
                     <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-secondary/50" onClick={handleCloseAnalysis}>
                       <X className="h-4 w-4" />
                     </Button>
@@ -829,6 +838,13 @@ export function YouTubeSession() {
                       </div>
                     ) : analysisResult ? (
                       <>
+                        {/* 如果原始形式与原型不同，显示变形说明 */}
+                        {analysisResult.original_form && 
+                         analysisResult.original_form.toLowerCase() !== analysisResult.term.toLowerCase() && (
+                          <div className="text-xs text-muted-foreground bg-secondary/30 px-2 py-1 rounded inline-block">
+                            {analysisResult.original_form} → {analysisResult.term}
+                          </div>
+                        )}
                         <div className="space-y-1">
                           <div className="text-sm font-medium text-muted-foreground">释义</div>
                           <div className="text-lg font-medium">{analysisResult.meaning}</div>

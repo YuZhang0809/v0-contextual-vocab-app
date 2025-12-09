@@ -18,6 +18,7 @@ const analysisSchema = z.object({
       part_of_speech: z.string().describe("Part of speech abbreviation: n.(noun), v.(verb), adj.(adjective), adv.(adverb), prep.(preposition), conj.(conjunction), pron.(pronoun), det.(determiner), interj.(interjection), phr.(phrase/idiom)"),
       context_segment: z.string().describe("The actual segment in the sentence that matches the term"),
       meaning: z.string().describe("Precise Chinese meaning in this specific context (max 15 chars)"),
+      background_info: z.string().optional().describe("Background knowledge for technical terms, jargon, or words with domain-specific meanings (in Chinese, 50-150 chars). Only provide when the word needs deeper explanation beyond its dictionary definition."),
       example_sentence: z.string().describe("If input was a word: a generated example sentence. If input was a sentence: the original sentence."),
       example_sentence_translation: z.string().describe("Chinese translation of the example_sentence"),
     })
@@ -85,6 +86,12 @@ Requirements:
    - 'original_form': the exact form as it appears in the text (e.g., "running", "children").
    - 'part_of_speech': the appropriate abbreviation (e.g., "n.", "v.", "phr.").
    - 'meaning': concise Chinese meaning (max 15 chars).
+   - 'background_info': (可选，50-150字中文) 仅当该词是以下情况时提供：
+     * 专业术语/行业黑话（如 scaffolding 在软件开发中指"脚手架代码"）
+     * 在特定领域有特殊含义（如 coupling 在软件架构中指模块耦合度）
+     * 有文化/历史背景需要解释的词
+     * 比喻用法需要解释的词
+     对于常见词（如 run, happy, book）不需要提供此字段。
    - 'example_sentence': the provided context (if valid) or the generated sentence.
    - 'example_sentence_translation': Chinese translation of the example_sentence (REQUIRED).
 
@@ -141,6 +148,7 @@ Constraints:
 - 'term' must be the lemma/base form of the word (e.g., "run" not "running").
 - 'original_form' must be the exact inflected form as it appears in the sentence.
 - 'part_of_speech' must be filled with the appropriate abbreviation (n., v., adj., etc.).
+- 'background_info': (可选，50-150字中文) 仅当该词是专业术语、行业黑话、或在特定领域有特殊含义时提供背景解释。常见词不需要此字段。
 - 'context_segment' should be the exact text from the sentence.
 - 'example_sentence_translation' is REQUIRED for every item.
 `

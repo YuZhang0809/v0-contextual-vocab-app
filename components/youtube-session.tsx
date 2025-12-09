@@ -28,6 +28,7 @@ interface AnalysisItem {
   part_of_speech?: string;
   context_segment: string;
   meaning: string;
+  background_info?: string;
   example_sentence: string;
   example_sentence_translation?: string;
 }
@@ -849,6 +850,19 @@ export function YouTubeSession() {
                           <div className="text-sm font-medium text-muted-foreground">释义</div>
                           <div className="text-lg font-medium">{analysisResult.meaning}</div>
                         </div>
+                        
+                        {/* 背景知识（仅当有专业术语需要解释时显示） */}
+                        {analysisResult.background_info && (
+                          <div className="space-y-1.5 bg-amber-500/10 p-3 rounded-lg border border-amber-500/20">
+                            <div className="text-xs font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                              <span>💡</span> 背景知识
+                            </div>
+                            <div className="text-sm text-foreground/80 leading-relaxed">
+                              {analysisResult.background_info}
+                            </div>
+                          </div>
+                        )}
+                        
                         <div className="space-y-2 bg-secondary/50 p-3 rounded-lg border border-border/30">
                           <div className="text-xs font-medium text-muted-foreground uppercase">Context</div>
                           <div className="text-sm font-serif italic leading-relaxed">

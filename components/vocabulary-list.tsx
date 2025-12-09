@@ -49,12 +49,10 @@ export function VocabularyList() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
 
-  // Filter cards - search across all contexts
   const filteredCards = cards.filter((card) => {
     const query = searchQuery.toLowerCase()
     if (card.word.toLowerCase().includes(query)) return true
     
-    // Search in all contexts
     if (card.contexts && card.contexts.length > 0) {
       return card.contexts.some(
         (ctx) =>
@@ -65,10 +63,8 @@ export function VocabularyList() {
     return false
   })
 
-  // Get selected card object
   const selectedCard = cards.find((c) => c.id === selectedCardId) || filteredCards[0]
 
-  // Get the first context's meaning for display in list
   const getFirstMeaning = (card: WordCard): string => {
     if (card.contexts && card.contexts.length > 0) {
       return card.contexts[0].meaning_cn
@@ -76,7 +72,6 @@ export function VocabularyList() {
     return ""
   }
 
-  // Get the "dominant" status of a card based on its contexts
   const getCardDominantStatus = (card: WordCard): CardStatus => {
     if (!card.contexts || card.contexts.length === 0) return "new"
     
@@ -107,11 +102,11 @@ export function VocabularyList() {
 
   const getStatusColor = (status: CardStatus) => {
     switch (status) {
-      case "new": return "bg-blue-500/10 text-blue-500 border-blue-500/20"
-      case "learning": return "bg-amber-500/10 text-amber-500 border-amber-500/20"
-      case "review": return "bg-purple-500/10 text-purple-500 border-purple-500/20"
-      case "graduated": return "bg-green-500/10 text-green-500 border-green-500/20"
-      default: return "bg-muted text-muted-foreground"
+      case "new": return "bg-secondary text-secondary-foreground"
+      case "learning": return "bg-warning/15 text-warning"
+      case "review": return "bg-primary/15 text-primary"
+      case "graduated": return "bg-success/15 text-success"
+      default: return "bg-secondary text-secondary-foreground"
     }
   }
 
@@ -136,7 +131,6 @@ export function VocabularyList() {
     return "未知"
   }
 
-  // 格式化时间戳为 MM:SS 格式
   const formatTimestamp = (seconds: number): string => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
@@ -145,28 +139,28 @@ export function VocabularyList() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-8rem)]">
-      {/* Left Sidebar: List */}
-      <Card className="lg:col-span-4 flex flex-col h-full border-border/50 overflow-hidden">
-        <div className="p-4 border-b border-border/50 space-y-4">
+      {/* Left Sidebar */}
+      <Card className="lg:col-span-4 flex flex-col h-full overflow-hidden">
+        <div className="p-4 border-b border-border/50 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-lg flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-primary" />
-              我的单词本
+            <h2 className="font-medium flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" />
+              词库
             </h2>
-            <Badge variant="secondary">{cards.length}</Badge>
+            <Badge variant="secondary" className="font-normal">{cards.length}</Badge>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="搜索单词..."
+              placeholder="搜索..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-muted/50"
+              className="pl-9 h-9"
             />
           </div>
         </div>
         <ScrollArea className="flex-1">
-          <div className="p-2 space-y-1">
+          <div className="p-2 space-y-0.5">
             {filteredCards.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 未找到相关单词
@@ -174,29 +168,32 @@ export function VocabularyList() {
             ) : (
               filteredCards.map((card) => {
                 const dominantStatus = getCardDominantStatus(card)
+                const isSelected = selectedCard?.id === card.id
                 return (
                   <div
                     key={card.id}
                     onClick={() => setSelectedCardId(card.id)}
                     className={`
-                      p-3 rounded-lg cursor-pointer transition-all duration-200 group
-                      hover:bg-muted/50 border border-transparent
-                      ${selectedCard?.id === card.id ? "bg-primary/5 border-primary/20 shadow-sm" : ""}
+                      p-3 rounded-md cursor-pointer transition-colors group
+                      ${isSelected 
+                        ? "bg-primary/10" 
+                        : "hover:bg-secondary/50"
+                      }
                     `}
                   >
                     <div className="flex justify-between items-start mb-1">
                       <div className="flex items-center gap-2">
-                        <span className={`font-medium ${selectedCard?.id === card.id ? "text-primary" : ""}`}>
+                        <span className={`font-mono text-sm ${isSelected ? "text-foreground" : ""}`}>
                           {card.word}
                         </span>
                         {card.contexts && card.contexts.length > 1 && (
-                          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 gap-0.5">
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 gap-0.5 font-normal border-border/50">
                             <Layers className="h-2.5 w-2.5" />
                             {card.contexts.length}
                           </Badge>
                         )}
                       </div>
-                      <Badge className={`text-[10px] px-1.5 py-0 h-5 ${getStatusColor(dominantStatus)}`}>
+                      <Badge className={`text-[9px] px-1.5 py-0 h-4 border-0 ${getStatusColor(dominantStatus)}`}>
                         {getStatusLabel(dominantStatus)}
                       </Badge>
                     </div>
@@ -211,34 +208,34 @@ export function VocabularyList() {
         </ScrollArea>
       </Card>
 
-      {/* Right Side: Detail View */}
+      {/* Right Detail */}
       <div className="lg:col-span-8 h-full flex flex-col">
         {selectedCard ? (
-          <Card className="h-full border-border/50 flex flex-col overflow-hidden">
-            <CardHeader className="border-b border-border/50 bg-muted/10 pb-6">
+          <Card className="h-full flex flex-col overflow-hidden">
+            <CardHeader className="border-b border-border/50 pb-5">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-4">
-                    <h1 className="text-3xl font-bold tracking-tight">{selectedCard.word}</h1>
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-mono font-semibold tracking-tight">{selectedCard.word}</h1>
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="rounded-full hover:bg-primary/10 hover:text-primary"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
                       onClick={() => speakWord(selectedCard.word)}
                     >
-                      <Volume2 className="h-5 w-5" />
+                      <Volume2 className="h-4 w-4" />
                     </Button>
                     {selectedCard.contexts && selectedCard.contexts.length > 1 && (
-                      <Badge variant="secondary" className="gap-1">
+                      <Badge variant="secondary" className="gap-1 font-normal">
                         <Layers className="h-3 w-3" />
-                        {selectedCard.contexts.length} 个语境
+                        {selectedCard.contexts.length} 语境
                       </Badge>
                     )}
                   </div>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -247,14 +244,14 @@ export function VocabularyList() {
                       <AlertDialogTrigger asChild>
                         <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
                           <Trash2 className="mr-2 h-4 w-4" />
-                          删除单词
+                          删除
                         </DropdownMenuItem>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>确认删除</AlertDialogTitle>
                           <AlertDialogDescription>
-                            确定要删除单词 &quot;{selectedCard.word}&quot; 及其所有语境吗？此操作无法撤销。
+                            确定要删除 &quot;{selectedCard.word}&quot; 及其所有语境吗？
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -277,71 +274,69 @@ export function VocabularyList() {
             </CardHeader>
             
             <ScrollArea className="flex-1">
-              <div className="p-6 space-y-8">
-                {/* Contexts Section - 每个语境显示独立的 SRS 状态 */}
+              <div className="p-6 space-y-6">
                 <section className="space-y-3">
-                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                    <BookOpen className="h-4 w-4" />
-                    语境列表
+                  <h3 className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                    <BookOpen className="h-3.5 w-3.5" />
+                    语境
                   </h3>
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {selectedCard.contexts && selectedCard.contexts.length > 0 ? (
                       selectedCard.contexts.map((context, index) => (
                         <div 
                           key={index} 
-                          className="bg-muted/30 p-5 rounded-xl border border-border/50 relative overflow-hidden group"
+                          className="bg-secondary/30 p-5 rounded-md relative group"
                         >
-                          <div className={`absolute top-0 left-0 w-1 h-full ${
-                            context.review_status === "graduated" ? "bg-green-500" :
-                            context.review_status === "review" ? "bg-purple-500" :
-                            context.review_status === "learning" ? "bg-amber-500" :
-                            "bg-blue-500"
+                          {/* Status indicator */}
+                          <div className={`absolute top-0 left-0 w-0.5 h-full rounded-l-md ${
+                            context.review_status === "graduated" ? "bg-success" :
+                            context.review_status === "review" ? "bg-primary" :
+                            context.review_status === "learning" ? "bg-warning" :
+                            "bg-muted-foreground"
                           }`} />
                           
-{/* Context header */}
-                                          <div className="flex items-center justify-between mb-3">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                              <Badge variant="secondary" className="text-xs">
-                                                {context.meaning_cn}
-                                              </Badge>
-                                              <Badge className={`text-[10px] ${getStatusColor(context.review_status)}`}>
-                                                {getStatusLabel(context.review_status)}
-                                              </Badge>
-                                              {/* 来源标签 - 如果是 YouTube，显示可点击的链接 */}
-                                              {(() => {
-                                                const youtubeLink = getYouTubeLink(context.source)
-                                                if (youtubeLink) {
-                                                  return (
-                                                    <a 
-                                                      href={youtubeLink}
-                                                      target="_blank"
-                                                      rel="noopener noreferrer"
-                                                      className="inline-flex"
-                                                    >
-                                                      <Badge 
-                                                        variant="outline" 
-                                                        className="text-[10px] gap-1 cursor-pointer hover:bg-red-500/10 hover:text-red-600 hover:border-red-500/30 transition-colors"
-                                                      >
-                                                        <Youtube className="h-3 w-3" />
-                                                        YouTube
-                                                        {isVideoSource(context.source) && (
-                                                          <span className="flex items-center gap-0.5">
-                                                            <Clock className="h-2.5 w-2.5" />
-                                                            {formatTimestamp(context.source.timestamp)}
-                                                          </span>
-                                                        )}
-                                                        <ExternalLink className="h-2.5 w-2.5" />
-                                                      </Badge>
-                                                    </a>
-                                                  )
-                                                }
-                                                return (
-                                                  <Badge variant="outline" className="text-[10px]">
-                                                    {getSourceLabel(context.source)}
-                                                  </Badge>
-                                                )
-                                              })()}
-                                            </div>
+                          {/* Header */}
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="secondary" className="text-xs font-normal">
+                                {context.meaning_cn}
+                              </Badge>
+                              <Badge className={`text-[9px] border-0 ${getStatusColor(context.review_status)}`}>
+                                {getStatusLabel(context.review_status)}
+                              </Badge>
+                              {(() => {
+                                const youtubeLink = getYouTubeLink(context.source)
+                                if (youtubeLink) {
+                                  return (
+                                    <a 
+                                      href={youtubeLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <Badge 
+                                        variant="outline" 
+                                        className="text-[9px] gap-1 font-normal border-border/50 hover:bg-secondary cursor-pointer"
+                                      >
+                                        <Youtube className="h-2.5 w-2.5" />
+                                        YouTube
+                                        {isVideoSource(context.source) && (
+                                          <span className="flex items-center gap-0.5">
+                                            <Clock className="h-2 w-2" />
+                                            {formatTimestamp(context.source.timestamp)}
+                                          </span>
+                                        )}
+                                        <ExternalLink className="h-2 w-2" />
+                                      </Badge>
+                                    </a>
+                                  )
+                                }
+                                return (
+                                  <Badge variant="outline" className="text-[9px] font-normal border-border/50">
+                                    {getSourceLabel(context.source)}
+                                  </Badge>
+                                )
+                              })()}
+                            </div>
                             <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
@@ -364,9 +359,9 @@ export function VocabularyList() {
                                   </AlertDialogTrigger>
                                   <AlertDialogContent>
                                     <AlertDialogHeader>
-                                      <AlertDialogTitle>删除此语境？</AlertDialogTitle>
+                                      <AlertDialogTitle>删除语境</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        确定要删除这个语境吗？此操作无法撤销。
+                                        确定要删除这个语境吗？
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -385,13 +380,13 @@ export function VocabularyList() {
                           </div>
                           
                           {/* Sentence */}
-                          <p className="text-lg leading-relaxed font-serif text-foreground/90 italic pl-3 mb-3">
+                          <p className="text-base leading-relaxed mb-3 pl-3">
                             &quot;{context.sentence}&quot;
                           </p>
 
                           {/* Translation */}
                           {context.sentence_translation && (
-                            <p className="text-sm text-muted-foreground pl-3 mb-3 border-l-2 border-muted">
+                            <p className="text-sm text-muted-foreground pl-3 mb-3 border-l-2 border-border">
                               {context.sentence_translation}
                             </p>
                           )}
@@ -403,11 +398,11 @@ export function VocabularyList() {
                             </div>
                           )}
                           
-                          {/* Context SRS Info */}
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground pl-3 pt-2 border-t border-border/30">
+                          {/* Meta */}
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground pl-3 pt-3 border-t border-border/30">
                             <span className="flex items-center gap-1">
                               <CheckCircle2 className="h-3 w-3" />
-                              复习 {context.repetition} 次
+                              {context.repetition} 次复习
                             </span>
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
@@ -417,20 +412,17 @@ export function VocabularyList() {
                         </div>
                       ))
                     ) : (
-                      <div className="text-center py-4 text-muted-foreground text-sm">
-                        没有语境数据
+                      <div className="text-center py-8 text-muted-foreground text-sm">
+                        暂无语境
                       </div>
                     )}
                   </div>
                 </section>
 
-                {/* Additional Info (Mnemonics etc) */}
                 {selectedCard.mnemonics && (
-                   <section className="space-y-3">
-                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                      助记/备注
-                    </h3>
-                    <div className="p-4 rounded-lg bg-yellow-500/5 border border-yellow-500/20 text-sm">
+                   <section className="space-y-2">
+                    <h3 className="text-xs text-muted-foreground uppercase tracking-wider">备注</h3>
+                    <div className="p-4 rounded-md bg-secondary/30 text-sm">
                       {selectedCard.mnemonics}
                     </div>
                   </section>
@@ -439,9 +431,9 @@ export function VocabularyList() {
             </ScrollArea>
           </Card>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground border border-dashed border-border/50 rounded-lg bg-muted/10">
-            <BookOpen className="h-12 w-12 mb-4 opacity-20" />
-            <p>选择左侧单词查看详情</p>
+          <div className="h-full flex flex-col items-center justify-center text-muted-foreground border border-dashed border-border/50 rounded-lg">
+            <BookOpen className="h-10 w-10 mb-3 opacity-20" />
+            <p className="text-sm">选择词汇查看详情</p>
           </div>
         )}
       </div>

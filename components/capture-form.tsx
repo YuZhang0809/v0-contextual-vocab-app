@@ -17,7 +17,7 @@ interface AnalysisItem {
   context_segment: string
   meaning: string
   example_sentence: string
-  example_sentence_translation?: string  // 新增：例句翻译
+  example_sentence_translation?: string
 }
 
 interface AnalysisResult {
@@ -31,7 +31,6 @@ interface AnalysisResult {
   items: AnalysisItem[]
 }
 
-// 保存状态：新建 or 追加
 type SaveStatus = { type: "new" } | { type: "appended"; contextCount: number }
 
 export function CaptureForm() {
@@ -39,21 +38,11 @@ export function CaptureForm() {
   const [inputText, setInputText] = useState("")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
-  
-  // Track saved state for each item index
   const [savedStatuses, setSavedStatuses] = useState<Map<number, SaveStatus>>(new Map())
   const [savingIndex, setSavingIndex] = useState<number | null>(null)
-
-  // Local state for editing items before saving
   const [editedItems, setEditedItems] = useState<AnalysisItem[]>([])
-  
-  // Track processing state for assistive lookup per item
   const [lookupIndices, setLookupIndices] = useState<Set<number>>(new Set())
-
-  // Track selected tags for each item
   const [itemTags, setItemTags] = useState<Map<number, string[]>>(new Map())
-
-  // Refs for focusing inputs
   const itemRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const handleAnalyze = async () => {
@@ -97,7 +86,7 @@ export function CaptureForm() {
         word: item.term,
         sentence: item.example_sentence,
         meaning_cn: item.meaning,
-        sentence_translation: item.example_sentence_translation,  // 传递翻译
+        sentence_translation: item.example_sentence_translation,
         source: "capture",
         tags: tags.length > 0 ? tags : undefined,
       })
@@ -153,11 +142,9 @@ export function CaptureForm() {
       }
     }
 
-    // Check if there is already an empty card (empty term)
     const emptyIndex = editedItems.findIndex(item => !item.term.trim())
     
     if (!selectedText && emptyIndex !== -1) {
-      // If adding empty card but one already exists, focus it instead
       const inputEl = itemRefs.current[emptyIndex]
       if (inputEl) {
         inputEl.focus()
@@ -175,7 +162,6 @@ export function CaptureForm() {
 
     setEditedItems((prev) => [...prev, newItem])
     
-    // Assume sentence mode if manually adding context
     if (!analysisResult) {
       setAnalysisResult({
         is_sentence: true,
@@ -183,7 +169,6 @@ export function CaptureForm() {
       })
     }
 
-    // Focus the new item after render (microtask)
     setTimeout(() => {
         const newIndex = editedItems.length
         const inputEl = itemRefs.current[newIndex]
@@ -243,47 +228,62 @@ export function CaptureForm() {
 
   return (
     <div className="space-y-6">
-      <Card className="border-border/50">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <Sparkles className="h-4 w-4 text-primary" />
             智能录入
           </CardTitle>
           <CardDescription>
-            输入单词、词组或完整句子，AI 将自动分析并生成卡片。重复单词会自动追加语境。
+            输入单词、词组或完整句子，AI 将自动分析并生成卡片
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="input-text">输入内容</Label>
+            <Label htmlFor="input-text" className="text-sm">输入内容</Label>
             <Textarea
               id="input-text"
               placeholder="例如: 'ephemeral' 或者 'Fashions are ephemeral, changing with every season.'"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               rows={4}
-              className="resize-none font-medium"
+              className="resize-none"
             />
           </div>
 
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={handleAddCustom} disabled={!inputText} className="mr-auto">
-              <Plus className="h-4 w-4 mr-2" />
-              添加选中/自定义
+            <Button 
+              variant="outline" 
+              onClick={handleAddCustom} 
+              disabled={!inputText} 
+              className="mr-auto"
+              size="sm"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              手动添加
             </Button>
-            <Button variant="ghost" onClick={handleReset} disabled={!inputText && !analysisResult}>
-              <RotateCcw className="h-4 w-4 mr-2" />
+            <Button 
+              variant="ghost" 
+              onClick={handleReset} 
+              disabled={!inputText && !analysisResult}
+              size="sm"
+            >
+              <RotateCcw className="h-4 w-4 mr-1.5" />
               重置
             </Button>
-            <Button onClick={handleAnalyze} disabled={!inputText.trim() || isAnalyzing} className="min-w-[100px]">
+            <Button 
+              onClick={handleAnalyze} 
+              disabled={!inputText.trim() || isAnalyzing}
+              size="sm"
+            >
               {isAnalyzing ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
                   分析中
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4 mr-2" />
+                  <Sparkles className="h-4 w-4 mr-1.5" />
                   智能分析
                 </>
               )}
@@ -293,48 +293,50 @@ export function CaptureForm() {
       </Card>
 
       {(analysisResult || editedItems.length > 0) && (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-4 animate-fade-in">
           <div className="flex items-center justify-between px-1">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Check className="h-4 w-4 text-green-500" />
+            <h3 className="text-sm font-medium flex items-center gap-2">
+              <Check className="h-4 w-4 text-success" />
               分析结果
-              <span className="text-sm font-normal text-muted-foreground ml-2">
+              <span className="font-normal text-muted-foreground">
                 ({analysisResult?.is_sentence ? "句子模式" : "单词模式"})
               </span>
             </h3>
           </div>
 
           {analysisResult?.is_sentence && (
-            <div className="bg-muted/30 p-4 rounded-lg space-y-4 border border-border/50">
-              {analysisResult.sentence_translation && (
-                <div className="space-y-1">
-                  <h4 className="text-sm font-medium text-muted-foreground">中文翻译</h4>
-                  <p className="text-lg font-serif">{analysisResult.sentence_translation}</p>
-                </div>
-              )}
-              
-              {analysisResult.sentence_analysis && (
-                <div className="grid gap-4 sm:grid-cols-2 text-sm">
+            <Card className="bg-secondary/30 border-border/30">
+              <CardContent className="p-5 space-y-4">
+                {analysisResult.sentence_translation && (
                   <div className="space-y-1">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">语法分析</h4>
-                    <p className="leading-relaxed text-muted-foreground/90">{analysisResult.sentence_analysis.grammar}</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">翻译</p>
+                    <p className="text-base leading-relaxed">{analysisResult.sentence_translation}</p>
                   </div>
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">深度解读</h4>
-                    <p className="leading-relaxed text-muted-foreground/90">{analysisResult.sentence_analysis.nuance}</p>
-                  </div>
-                  {analysisResult.sentence_analysis.cultural_background && (
-                    <div className="space-y-1 sm:col-span-2 border-t border-border/50 pt-3">
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">背景知识</h4>
-                      <p className="leading-relaxed text-muted-foreground/90">{analysisResult.sentence_analysis.cultural_background}</p>
+                )}
+                
+                {analysisResult.sentence_analysis && (
+                  <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-border/30">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">语法</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{analysisResult.sentence_analysis.grammar}</p>
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">解读</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{analysisResult.sentence_analysis.nuance}</p>
+                    </div>
+                    {analysisResult.sentence_analysis.cultural_background && (
+                      <div className="space-y-1 sm:col-span-2 pt-2 border-t border-border/30">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">背景</p>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{analysisResult.sentence_analysis.cultural_background}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
 
-          <div className="grid gap-4">
+          <div className="space-y-3">
             {editedItems.map((item, index) => {
               const saveStatus = getSaveStatus(index)
               const isSaved = saveStatus !== null
@@ -343,72 +345,72 @@ export function CaptureForm() {
                 <Card 
                   key={index} 
                   className={cn(
-                    "border-l-4 transition-all", 
-                    isSaved 
-                      ? saveStatus.type === "appended" 
-                        ? "border-l-blue-500 opacity-70" 
-                        : "border-l-green-500 opacity-70"
-                      : "border-l-primary"
+                    "transition-opacity duration-300", 
+                    isSaved && "opacity-60"
                   )}
                 >
-                  <CardContent className="pt-6 space-y-4">
+                  <CardContent className="p-5 space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>目标单词 (Term)</Label>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">单词</Label>
                         <Input 
                           ref={el => { itemRefs.current[index] = el }}
                           value={item.term} 
                           onChange={(e) => handleItemChange(index, 'term', e.target.value)}
-                          className="font-bold"
+                          className="font-mono"
                           placeholder="输入单词..."
                           disabled={isSaved}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label className="flex items-center justify-between">
-                            中文释义 (Meaning)
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-5 w-5 text-muted-foreground hover:text-primary"
-                              onClick={() => handleAssistiveLookup(index)}
-                              disabled={!item.term || lookupIndices.has(index) || isSaved}
-                              title="AI 自动填义"
-                            >
-                                {lookupIndices.has(index) ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-                            </Button>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs flex items-center justify-between">
+                          释义
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-5 px-2 text-xs text-muted-foreground hover:text-primary"
+                            onClick={() => handleAssistiveLookup(index)}
+                            disabled={!item.term || lookupIndices.has(index) || isSaved}
+                          >
+                            {lookupIndices.has(index) ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <>
+                                <Sparkles className="h-3 w-3 mr-1" />
+                                AI填充
+                              </>
+                            )}
+                          </Button>
                         </Label>
                         <Input 
                           value={item.meaning} 
                           onChange={(e) => handleItemChange(index, 'meaning', e.target.value)}
-                          placeholder="点击右上方按钮自动填充"
+                          placeholder="中文释义"
                           disabled={isSaved}
                         />
                       </div>
                     </div>
                     
-                    <div className="space-y-2">
-                      <Label>例句 / 语境 (Context)</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">语境</Label>
                       <Textarea 
                         value={item.example_sentence} 
                         onChange={(e) => handleItemChange(index, 'example_sentence', e.target.value)}
-                        className="font-mono text-sm bg-muted/20"
+                        className="text-sm resize-none"
                         rows={2}
                         disabled={isSaved}
                       />
-                      {/* 显示翻译（如果有） */}
                       {item.example_sentence_translation && (
-                        <p className="text-sm text-muted-foreground pl-2 border-l-2 border-muted">
+                        <p className="text-xs text-muted-foreground pl-3 border-l-2 border-border">
                           {item.example_sentence_translation}
                         </p>
                       )}
                     </div>
 
-                    {/* 标签选择器 */}
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-1.5">
-                        <Tag className="h-3.5 w-3.5" />
-                        标签（可选）
+                    <div className="space-y-1.5">
+                      <Label className="text-xs flex items-center gap-1">
+                        <Tag className="h-3 w-3" />
+                        标签
                       </Label>
                       <TagSelector
                         selectedTags={itemTags.get(index) || []}
@@ -418,10 +420,9 @@ export function CaptureForm() {
                       />
                     </div>
                   </CardContent>
-                  <CardFooter className="bg-secondary/10 py-3 flex justify-end gap-2">
-                    {/* 保存状态提示 */}
+                  <CardFooter className="bg-secondary/20 p-4 flex justify-end gap-2">
                     {saveStatus?.type === "appended" && (
-                      <Badge variant="secondary" className="gap-1 mr-auto">
+                      <Badge variant="secondary" className="gap-1 mr-auto font-normal">
                         <Layers className="h-3 w-3" />
                         已追加（共 {saveStatus.contextCount} 个语境）
                       </Badge>
@@ -437,12 +438,12 @@ export function CaptureForm() {
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : isSaved ? (
                         <>
-                          <Check className="h-4 w-4 mr-2" />
+                          <Check className="h-4 w-4 mr-1.5" />
                           {saveStatus?.type === "appended" ? "已追加" : "已保存"}
                         </>
                       ) : (
                         <>
-                          <Plus className="h-4 w-4 mr-2" />
+                          <Plus className="h-4 w-4 mr-1.5" />
                           添加到词库
                         </>
                       )}

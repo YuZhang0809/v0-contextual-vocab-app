@@ -16,10 +16,9 @@ import {
 } from 'lucide-react'
 import { useWatchSessions, groupSessionsByDate, getDatesWithSessions } from '@/hooks/use-watch-sessions'
 import { useCards } from '@/hooks/use-cards'
-import { WatchSession, isVideoSource, getYouTubeLink } from '@/lib/types'
+import { WatchSession, isVideoSource } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
-// 日历组件
 function LearningCalendar({ 
   year, 
   month, 
@@ -42,30 +41,26 @@ function LearningCalendar({
   
   const days: (number | null)[] = []
   
-  // 填充月初空白
   for (let i = 0; i < firstDayOfMonth; i++) {
     days.push(null)
   }
   
-  // 填充日期
   for (let i = 1; i <= daysInMonth; i++) {
     days.push(i)
   }
   
   return (
     <div className="space-y-4">
-      <div className="text-center font-semibold text-lg">
+      <div className="text-center text-sm font-medium">
         {year}年 {monthNames[month]}
       </div>
       
-      {/* 星期头 */}
-      <div className="grid grid-cols-7 gap-1 text-center text-sm text-muted-foreground">
+      <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground">
         {weekDays.map(day => (
-          <div key={day} className="py-2">{day}</div>
+          <div key={day} className="py-1.5">{day}</div>
         ))}
       </div>
       
-      {/* 日期格子 */}
       <div className="grid grid-cols-7 gap-1">
         {days.map((day, index) => {
           if (day === null) {
@@ -83,16 +78,16 @@ function LearningCalendar({
               key={day}
               onClick={() => onSelectDate(isSelected ? null : day)}
               className={cn(
-                "aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-colors relative",
-                hasSession && "bg-primary/10 hover:bg-primary/20",
-                !hasSession && "hover:bg-muted/50",
-                isSelected && "ring-2 ring-primary bg-primary/20",
-                isToday && "font-bold"
+                "aspect-square rounded-md flex flex-col items-center justify-center text-sm transition-colors relative",
+                hasSession && "bg-primary/10 hover:bg-primary/15",
+                !hasSession && "hover:bg-secondary/50",
+                isSelected && "ring-1 ring-primary bg-primary/15",
+                isToday && "font-medium"
               )}
             >
               <span>{day}</span>
               {hasSession && (
-                <span className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary" />
+                <span className="absolute bottom-1 w-1 h-1 rounded-full bg-primary" />
               )}
             </button>
           )
@@ -102,7 +97,6 @@ function LearningCalendar({
   )
 }
 
-// 单个会话卡片
 function SessionCard({ 
   session, 
   wordsFromSession 
@@ -117,95 +111,88 @@ function SessionCard({
   const videoUrl = `https://www.youtube.com/watch?v=${session.video_id}`
   
   return (
-    <Card className="bg-card/50">
-      <CardContent className="p-4">
-        <div className="flex gap-4">
-          {/* 缩略图 */}
-          {session.thumbnail_url && (
-            <a 
-              href={videoUrl} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="shrink-0"
-            >
-              <img 
-                src={session.thumbnail_url} 
-                alt={session.video_title || 'Video thumbnail'}
-                className="w-32 h-20 object-cover rounded-md hover:opacity-80 transition-opacity"
-              />
-            </a>
-          )}
+    <div className="bg-secondary/30 rounded-md p-4">
+      <div className="flex gap-4">
+        {session.thumbnail_url && (
+          <a 
+            href={videoUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="shrink-0"
+          >
+            <img 
+              src={session.thumbnail_url} 
+              alt={session.video_title || 'Video thumbnail'}
+              className="w-28 h-16 object-cover rounded hover:opacity-80 transition-opacity"
+            />
+          </a>
+        )}
+        
+        <div className="flex-1 min-w-0">
+          <a 
+            href={videoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-medium hover:text-primary transition-colors line-clamp-2 flex items-start gap-1"
+          >
+            {session.video_title || session.video_id}
+            <ExternalLink className="h-3 w-3 shrink-0 mt-0.5" />
+          </a>
           
-          <div className="flex-1 min-w-0">
-            {/* 标题 */}
-            <a 
-              href={videoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium hover:text-primary transition-colors line-clamp-2 flex items-start gap-1"
-            >
-              {session.video_title || session.video_id}
-              <ExternalLink className="h-3 w-3 shrink-0 mt-1" />
-            </a>
-            
-            {/* 频道和时间 */}
-            <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-              {session.channel_name && (
-                <span className="flex items-center gap-1">
-                  <Youtube className="h-3 w-3" />
-                  {session.channel_name}
-                </span>
-              )}
-              {duration && (
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {duration} 分钟
-                </span>
-              )}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+            {session.channel_name && (
               <span className="flex items-center gap-1">
-                <BookOpen className="h-3 w-3" />
-                {wordsFromSession.length} 词
+                <Youtube className="h-3 w-3" />
+                {session.channel_name}
               </span>
-            </div>
-            
-            {/* 学到的单词 */}
-            {wordsFromSession.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {wordsFromSession.slice(0, 5).map((item, i) => (
-                  <Badge 
-                    key={i} 
-                    variant="secondary" 
-                    className="text-xs cursor-pointer hover:bg-secondary/80"
-                    title={item.meaning}
-                    onClick={() => {
-                      if (item.timestamp !== undefined) {
-                        window.open(`${videoUrl}&t=${item.timestamp}s`, '_blank')
-                      }
-                    }}
-                  >
-                    {item.word}
-                    {item.timestamp !== undefined && (
-                      <span className="ml-1 text-muted-foreground">
-                        {Math.floor(item.timestamp / 60)}:{String(item.timestamp % 60).padStart(2, '0')}
-                      </span>
-                    )}
-                  </Badge>
-                ))}
-                {wordsFromSession.length > 5 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{wordsFromSession.length - 5}
-                  </Badge>
-                )}
-              </div>
             )}
+            {duration && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {duration}分钟
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <BookOpen className="h-3 w-3" />
+              {wordsFromSession.length}词
+            </span>
           </div>
+          
+          {wordsFromSession.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {wordsFromSession.slice(0, 5).map((item, i) => (
+                <Badge 
+                  key={i} 
+                  variant="secondary" 
+                  className="text-[10px] cursor-pointer font-normal"
+                  title={item.meaning}
+                  onClick={() => {
+                    if (item.timestamp !== undefined) {
+                      window.open(`${videoUrl}&t=${item.timestamp}s`, '_blank')
+                    }
+                  }}
+                >
+                  {item.word}
+                  {item.timestamp !== undefined && (
+                    <span className="ml-1 text-muted-foreground">
+                      {Math.floor(item.timestamp / 60)}:{String(item.timestamp % 60).padStart(2, '0')}
+                    </span>
+                  )}
+                </Badge>
+              ))}
+              {wordsFromSession.length > 5 && (
+                <Badge variant="outline" className="text-[10px] font-normal">
+                  +{wordsFromSession.length - 5}
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
-// 主组件
 export function LearningHistory() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<number | null>(null)
@@ -213,7 +200,6 @@ export function LearningHistory() {
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
   
-  // 获取当月的开始和结束时间戳
   const startOfMonth = new Date(year, month, 1).getTime()
   const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999).getTime()
   
@@ -225,26 +211,22 @@ export function LearningHistory() {
   
   const { cards } = useCards()
   
-  // 有学习记录的日期
   const datesWithSessions = useMemo(() => 
     getDatesWithSessions(sessions, year, month), 
     [sessions, year, month]
   )
   
-  // 按日期分组的会话
   const groupedSessions = useMemo(() => 
     groupSessionsByDate(sessions),
     [sessions]
   )
   
-  // 获取选中日期的会话
   const selectedDateSessions = useMemo(() => {
     if (!selectedDate) return []
     const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDate).padStart(2, '0')}`
     return groupedSessions.get(dateKey) || []
   }, [selectedDate, year, month, groupedSessions])
   
-  // 从卡片中提取与会话相关的单词
   const getWordsForSession = (session: WatchSession) => {
     const words: Array<{ word: string; meaning: string; timestamp?: number }> = []
     
@@ -259,7 +241,6 @@ export function LearningHistory() {
             })
           }
         } else if (typeof context.source === 'string' && context.source === `youtube:${session.video_id}`) {
-          // 兼容旧格式
           words.push({
             word: card.word,
             meaning: context.meaning_cn,
@@ -271,7 +252,6 @@ export function LearningHistory() {
     return words
   }
   
-  // 月份导航
   const goToPrevMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1))
     setSelectedDate(null)
@@ -287,23 +267,22 @@ export function LearningHistory() {
     setSelectedDate(new Date().getDate())
   }
   
-  // 计算统计
   const totalSessions = sessions.length
   const totalWords = sessions.reduce((sum, s) => sum + s.words_saved, 0)
   const uniqueDays = datesWithSessions.size
   
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      {/* 标题和统计 */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="bg-primary/10 p-3 rounded-full">
-            <Calendar className="h-6 w-6 text-primary" />
+          <div className="p-2.5 rounded-md bg-primary/10">
+            <Calendar className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold">学习记录</h2>
+            <h2 className="text-lg font-medium">学习记录</h2>
             <p className="text-sm text-muted-foreground">
-              本月: {uniqueDays} 天 · {totalSessions} 个视频 · {totalWords} 个单词
+              本月: {uniqueDays}天 · {totalSessions}视频 · {totalWords}词
             </p>
           </div>
         </div>
@@ -313,15 +292,15 @@ export function LearningHistory() {
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 日历 */}
+        {/* Calendar */}
         <Card className="lg:col-span-1">
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <Button variant="ghost" size="icon" onClick={goToPrevMonth}>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToPrevMonth}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <CardTitle className="text-base">选择日期</CardTitle>
-              <Button variant="ghost" size="icon" onClick={goToNextMonth}>
+              <CardTitle className="text-sm font-medium">日历</CardTitle>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goToNextMonth}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -337,28 +316,28 @@ export function LearningHistory() {
           </CardContent>
         </Card>
         
-        {/* 详情 */}
+        {/* Details */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>
+            <CardTitle className="text-sm font-medium">
               {selectedDate 
-                ? `${month + 1}月${selectedDate}日 学习记录` 
-                : '选择日期查看详情'
+                ? `${month + 1}月${selectedDate}日` 
+                : '选择日期'
               }
             </CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-8 text-muted-foreground text-sm">
                 加载中...
               </div>
             ) : selectedDateSessions.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                {selectedDate ? '当天没有学习记录' : '点击日历上的日期查看详情'}
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                {selectedDate ? '当天没有学习记录' : '点击日期查看详情'}
               </div>
             ) : (
-              <ScrollArea className="h-[400px] pr-4">
-                <div className="space-y-4">
+              <ScrollArea className="h-[380px] pr-4">
+                <div className="space-y-3">
                   {selectedDateSessions.map(session => (
                     <SessionCard 
                       key={session.id} 
@@ -375,4 +354,3 @@ export function LearningHistory() {
     </div>
   )
 }
-

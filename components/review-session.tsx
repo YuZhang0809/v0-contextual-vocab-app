@@ -24,7 +24,6 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
   const [sessionUnits, setSessionUnits] = useState<ReviewUnit[]>([])
   const [reviewedCount, setReviewedCount] = useState(0)
 
-  // Initialize session with due contexts
   useEffect(() => {
     if (dueContexts.length > 0 && sessionUnits.length === 0) {
       setSessionUnits([...dueContexts])
@@ -38,12 +37,10 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
   const handleGrade = async (grade: ReviewGrade) => {
     if (!currentUnit) return
 
-    // 复习当前语境
     await reviewContext(currentUnit.card.id, currentUnit.contextIndex, grade)
     setReviewedCount((prev) => prev + 1)
 
     if (grade === "again") {
-      // Move unit to end of queue
       setSessionUnits((prev) => {
         const newUnits = [...prev]
         const [removed] = newUnits.splice(currentIndex, 1)
@@ -51,67 +48,74 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
         return newUnits
       })
     } else {
-      // Move to next unit
       if (currentIndex < sessionUnits.length - 1) {
         setCurrentIndex((prev) => prev + 1)
       } else {
-        // Session complete
         setSessionUnits([])
       }
     }
 
-    // Refresh data
     refreshAll()
     refreshDue()
   }
 
-  // Session complete state
+  // Session complete
   if (sessionUnits.length === 0 || currentIndex >= sessionUnits.length) {
     return (
-      <Card className="max-w-md mx-auto border-success/30 bg-gradient-to-br from-success/10 to-transparent">
-        <CardContent className="p-8 text-center space-y-6">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-success/20 to-success/5 border border-success/20 flex items-center justify-center shadow-lg shadow-success/10">
-            <CheckCircle2 className="h-8 w-8 text-success" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold">复习完成！</h2>
-            <p className="text-muted-foreground">你已完成 <span className="text-success font-medium">{reviewedCount}</span> 个语境的复习</p>
-          </div>
-          <Button onClick={onExit} className="gap-2 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
-            <ArrowLeft className="h-4 w-4" />
-            返回首页
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="max-w-md mx-auto animate-fade-in">
+        <Card>
+          <CardContent className="p-8 text-center space-y-6">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-success/10">
+              <CheckCircle2 className="h-7 w-7 text-success" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-medium">复习完成</h2>
+              <p className="text-muted-foreground">
+                你已完成 <span className="text-foreground font-medium">{reviewedCount}</span> 个语境的复习
+              </p>
+            </div>
+            <Button onClick={onExit} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              返回首页
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <Button variant="ghost" onClick={onExit} className="gap-2 hover:bg-secondary/50">
+        <Button 
+          variant="ghost" 
+          onClick={onExit} 
+          className="gap-2 text-muted-foreground hover:text-foreground"
+          size="sm"
+        >
           <ArrowLeft className="h-4 w-4" />
-          退出复习
+          退出
         </Button>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-secondary/50 px-3 py-1.5 rounded-lg border border-border/30">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-secondary px-3 py-1.5 rounded-md">
             <Switch
               id="review-mode"
               checked={mode === "flashcard"}
               onCheckedChange={(checked) => setMode(checked ? "flashcard" : "cloze")}
+              className="scale-90"
             />
-            <Label htmlFor="review-mode" className="text-sm cursor-pointer">
+            <Label htmlFor="review-mode" className="text-xs cursor-pointer flex items-center gap-1.5">
               {mode === "cloze" ? (
-                <span className="flex items-center gap-1.5">
-                  <Layers className="h-4 w-4 text-primary" />
-                  挖空模式
-                </span>
+                <>
+                  <Layers className="h-3.5 w-3.5 text-primary" />
+                  挖空
+                </>
               ) : (
-                <span className="flex items-center gap-1.5">
-                  <BookOpen className="h-4 w-4 text-accent" />
-                  闪卡模式
-                </span>
+                <>
+                  <BookOpen className="h-3.5 w-3.5 text-accent" />
+                  闪卡
+                </>
               )}
             </Label>
           </div>
@@ -122,14 +126,14 @@ export function ReviewSession({ onExit }: ReviewSessionProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">
-            进度: <span className="text-foreground font-medium">{currentIndex + 1}</span> / {totalUnits}
+            <span className="text-foreground font-medium">{currentIndex + 1}</span> / {totalUnits}
           </span>
-          <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">已复习: {reviewedCount}</Badge>
+          <Badge variant="secondary" className="font-normal">已复习 {reviewedCount}</Badge>
         </div>
-        <Progress value={progress} className="h-2 bg-secondary" />
+        <Progress value={progress} className="h-1" />
       </div>
 
-      {/* Review Card - 传递 ReviewUnit */}
+      {/* Review Card */}
       <ReviewCard unit={currentUnit} mode={mode} onGrade={handleGrade} />
     </div>
   )

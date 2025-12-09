@@ -51,10 +51,10 @@ export default function HomePage() {
         <AppHeader currentView={currentView} onViewChange={setCurrentView} dueCount={dueCount} />
       )}
 
-      <main className="container mx-auto px-4 py-6 sm:py-8">
+      <main className="container mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {currentView === "dashboard" && <Dashboard onStartReview={handleStartReview} />}
         {currentView === "capture" && (
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-xl mx-auto">
             <CaptureForm />
           </div>
         )}

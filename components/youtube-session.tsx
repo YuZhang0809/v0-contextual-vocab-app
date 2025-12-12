@@ -45,11 +45,11 @@ export function YouTubeSession() {
   const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [player, setPlayer] = useState<any>(null);
-  
+
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AnalysisItem | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
-  
+
   const [translating, setTranslating] = useState(false);
   const [translationProgress, setTranslationProgress] = useState<{
     current: number;
@@ -60,7 +60,7 @@ export function YouTubeSession() {
   const [cacheStatus, setCacheStatus] = useState<'checking' | 'cached' | 'none' | null>(null);
   const translatingRangeRef = useRef<Set<number>>(new Set());
   const abortControllerRef = useRef<AbortController | null>(null);
-  
+
   const [watchSession, setWatchSession] = useState<WatchSession | null>(null);
   const [videoMetadata, setVideoMetadata] = useState<{
     title?: string;
@@ -68,7 +68,7 @@ export function YouTubeSession() {
     thumbnail_url?: string;
   } | null>(null);
   const wordsSavedRef = useRef(0);
-  
+
   const { addCard } = useCards();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -94,7 +94,7 @@ export function YouTubeSession() {
 
   const translateRange = useCallback(async (startIdx: number, endIdx: number) => {
     if (transcript.length === 0) return;
-    
+
     const indicesToTranslate: number[] = [];
     for (let i = startIdx; i < endIdx && i < transcript.length; i++) {
       if (i >= 0 && !transcript[i].translation && !translatingRangeRef.current.has(i)) {
@@ -102,22 +102,22 @@ export function YouTubeSession() {
         translatingRangeRef.current.add(i);
       }
     }
-    
+
     if (indicesToTranslate.length === 0) return;
-    
+
     const segmentsToTranslate = indicesToTranslate.map(idx => transcript[idx]);
-    
-    setTranscript(prev => prev.map((seg, idx) => 
-      indicesToTranslate.includes(idx) 
+
+    setTranscript(prev => prev.map((seg, idx) =>
+      indicesToTranslate.includes(idx)
         ? { ...seg, translationStatus: 'loading' as const }
         : seg
     ));
-    
+
     let translationsReceived = 0;
-    
+
     try {
       abortControllerRef.current = new AbortController();
-      
+
       const response = await fetch('/api/youtube/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -128,30 +128,30 @@ export function YouTubeSession() {
         }),
         signal: abortControllerRef.current.signal,
       });
-      
+
       if (!response.ok) {
         throw new Error('Translation request failed');
       }
-      
+
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No response body');
-      
+
       const decoder = new TextDecoder();
       let buffer = '';
-      
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n\n');
         buffer = lines.pop() || '';
-        
+
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
               const event = JSON.parse(line.slice(6));
-              
+
               if (event.type === 'progress') {
                 setTranslationProgress({
                   current: event.batch,
@@ -179,7 +179,7 @@ export function YouTubeSession() {
                 console.log(`Translation complete: ${event.totalTranslated} segments`);
               } else if (event.type === 'error') {
                 console.error('Translation error:', event.message);
-                setTranscript(prev => prev.map((seg, idx) => 
+                setTranscript(prev => prev.map((seg, idx) =>
                   indicesToTranslate.includes(idx) && seg.translationStatus === 'loading'
                     ? { ...seg, translationStatus: 'error' as const }
                     : seg
@@ -194,7 +194,7 @@ export function YouTubeSession() {
     } catch (error) {
       if ((error as Error).name !== 'AbortError') {
         console.error('Translation error:', error);
-        setTranscript(prev => prev.map((seg, idx) => 
+        setTranscript(prev => prev.map((seg, idx) =>
           indicesToTranslate.includes(idx) && seg.translationStatus === 'loading'
             ? { ...seg, translationStatus: 'error' as const }
             : seg
@@ -209,10 +209,10 @@ export function YouTubeSession() {
   const translateAroundCurrentPosition = useCallback(() => {
     const currentIdx = getCurrentSegmentIndex();
     if (currentIdx < 0) return;
-    
+
     const startIdx = Math.max(0, currentIdx - TRANSLATE_BEHIND);
     const endIdx = Math.min(transcript.length, currentIdx + TRANSLATE_AHEAD);
-    
+
     translateRange(startIdx, endIdx);
   }, [getCurrentSegmentIndex, transcript.length, translateRange]);
 
@@ -221,7 +221,7 @@ export function YouTubeSession() {
       setCacheStatus('checking');
       const res = await fetch(`/api/youtube/translation-cache?video_id=${vid}`);
       if (!res.ok) return null;
-      
+
       const data = await res.json();
       if (data.cached && data.translations) {
         if (Array.isArray(data.translations)) {
@@ -255,7 +255,7 @@ export function YouTubeSession() {
     try {
       const translatedCount = Object.keys(translationsMap).length;
       if (translatedCount === 0) return;
-      
+
       await fetch('/api/youtube/translation-cache', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -273,12 +273,12 @@ export function YouTubeSession() {
 
   const handleTranslateAll = async () => {
     if (transcript.length === 0 || translating || !videoId) return;
-    
+
     setTranslating(true);
     setShowTranslation(true);
-    
+
     await translateRange(0, transcript.length);
-    
+
     setTranslating(false);
   };
 
@@ -289,13 +289,13 @@ export function YouTubeSession() {
 
   useEffect(() => {
     if (!showTranslation || transcript.length === 0) return;
-    
+
     const currentIdx = getCurrentSegmentIndex();
     if (currentIdx < 0) return;
-    
+
     const lookAheadStart = currentIdx;
     const lookAheadEnd = Math.min(currentIdx + TRANSLATE_AHEAD, transcript.length);
-    
+
     let needsTranslation = false;
     for (let i = lookAheadStart; i < lookAheadEnd; i++) {
       if (!transcript[i].translation && !translatingRangeRef.current.has(i)) {
@@ -303,7 +303,7 @@ export function YouTubeSession() {
         break;
       }
     }
-    
+
     if (needsTranslation) {
       translateRange(lookAheadStart, lookAheadEnd);
     }
@@ -311,53 +311,53 @@ export function YouTubeSession() {
 
   const lastSaveRef = useRef<number>(0);
   const pendingSaveRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   useEffect(() => {
     if (!videoId || transcript.length === 0) return;
-    
+
     const translationsMap: Record<string, string> = {};
     transcript.forEach((seg, idx) => {
       if (seg.translation && seg.translation !== '[翻译失败]' && seg.translation !== '[翻译缺失]') {
         translationsMap[String(idx)] = seg.translation;
       }
     });
-    
+
     const translatedCount = Object.keys(translationsMap).length;
     if (translatedCount === 0) return;
-    
+
     if (pendingSaveRef.current) {
       clearTimeout(pendingSaveRef.current);
     }
-    
+
     pendingSaveRef.current = setTimeout(() => {
       if (translatedCount > lastSaveRef.current) {
         saveTranslationCache(videoId, translationsMap, transcript.length);
         lastSaveRef.current = translatedCount;
-        
+
         if (translatedCount === transcript.length) {
           setCacheStatus('cached');
         }
       }
     }, 2000);
-    
+
     return () => {
       if (pendingSaveRef.current) {
         clearTimeout(pendingSaveRef.current);
       }
     };
   }, [transcript, videoId, saveTranslationCache]);
-  
+
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (!videoId || transcript.length === 0) return;
-      
+
       const translationsMap: Record<string, string> = {};
       transcript.forEach((seg, idx) => {
         if (seg.translation && seg.translation !== '[翻译失败]' && seg.translation !== '[翻译缺失]') {
           translationsMap[String(idx)] = seg.translation;
         }
       });
-      
+
       if (Object.keys(translationsMap).length > 0) {
         navigator.sendBeacon(
           '/api/youtube/translation-cache',
@@ -369,7 +369,7 @@ export function YouTubeSession() {
         );
       }
     };
-    
+
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [videoId, transcript]);
@@ -380,11 +380,11 @@ export function YouTubeSession() {
       alert("Invalid YouTube URL");
       return;
     }
-    
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    
+
     setVideoId(id);
     setLoading(true);
     setTranscript([]);
@@ -396,7 +396,7 @@ export function YouTubeSession() {
     setWatchSession(null);
     setVideoMetadata(null);
     wordsSavedRef.current = 0;
-    
+
     try {
       const [transcriptRes, metadata, cachedTranslations] = await Promise.all([
         fetch('/api/youtube/transcript', {
@@ -410,14 +410,14 @@ export function YouTubeSession() {
         }),
         checkTranslationCache(id),
       ]);
-      
+
       if (!transcriptRes.ok) {
         const errorData = await transcriptRes.json();
         throw new Error(errorData.details || errorData.error || "Failed to load transcript");
       }
-      
+
       const transcriptData = await transcriptRes.json();
-      
+
       if (cachedTranslations && Object.keys(cachedTranslations).length > 0) {
         const cachedCount = Object.keys(cachedTranslations).length;
         setTranscript(transcriptData.transcript.map((seg: TranscriptSegment, idx: number) => {
@@ -441,7 +441,7 @@ export function YouTubeSession() {
           translationStatus: 'pending' as const,
         })));
       }
-      
+
       if (metadata) {
         setVideoMetadata({
           title: metadata.title,
@@ -457,7 +457,7 @@ export function YouTubeSession() {
       setLoading(false);
     }
   };
-  
+
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
@@ -475,7 +475,7 @@ export function YouTubeSession() {
 
   const handleWordClick = async (word: string, context: string) => {
     if (player) player.pauseVideo();
-    
+
     setAnalyzing(true);
     setShowAnalysis(true);
     setSaveStatus(null);
@@ -486,9 +486,9 @@ export function YouTubeSession() {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           text: context,
-          focus_term: word 
+          focus_term: word
         })
       });
 
@@ -511,9 +511,9 @@ export function YouTubeSession() {
 
   const handleSaveCard = async () => {
     if (!analysisResult || !videoId) return;
-    
+
     let currentSession = watchSession;
-    
+
     if (!currentSession) {
       try {
         currentSession = await createWatchSession({
@@ -527,16 +527,16 @@ export function YouTubeSession() {
         console.warn('Failed to create watch session:', sessionErr);
       }
     }
-    
+
     const source: VideoSource | string = currentSession
       ? {
-          type: "youtube",
-          session_id: currentSession.id,
-          video_id: videoId,
-          timestamp: Math.floor(currentTime),
-        }
+        type: "youtube",
+        session_id: currentSession.id,
+        video_id: videoId,
+        timestamp: Math.floor(currentTime),
+      }
       : `youtube:${videoId}`;
-    
+
     try {
       const result = await addCard({
         word: analysisResult.term,
@@ -546,22 +546,22 @@ export function YouTubeSession() {
         source,
         tags: selectedTags.length > 0 ? selectedTags : undefined,
       });
-      
+
       if (result.isNew) {
         setSaveStatus({ type: "new" });
       } else {
         setSaveStatus({ type: "appended", contextCount: result.card.contexts?.length || 1 });
       }
-      
+
       wordsSavedRef.current += 1;
-      
+
       if (currentSession) {
         updateWatchSession({
           session_id: currentSession.id,
           words_saved: wordsSavedRef.current,
         }).catch(console.error);
       }
-      
+
       setTimeout(() => {
         setShowAnalysis(false);
         if (player) player.playVideo();
@@ -588,7 +588,7 @@ export function YouTubeSession() {
   const overallProgress = totalCount > 0 ? Math.round((translatedCount / totalCount) * 100) : 0;
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
+    <div className="space-y-6 max-w-[1800px] mx-auto h-[calc(100vh-8rem)] flex flex-col">
       {!videoId ? (
         <div className="flex flex-col items-center justify-center h-full space-y-8 animate-fade-in">
           <div className="p-5 rounded-xl bg-secondary">
@@ -601,8 +601,8 @@ export function YouTubeSession() {
             </p>
           </div>
           <div className="flex w-full max-w-md gap-2">
-            <Input 
-              placeholder="粘贴 YouTube 视频链接..." 
+            <Input
+              placeholder="粘贴 YouTube 视频链接..."
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="h-11"
@@ -617,9 +617,9 @@ export function YouTubeSession() {
           {/* Video Player */}
           <div className="lg:col-span-2 flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   if (abortControllerRef.current) {
                     abortControllerRef.current.abort();
@@ -632,7 +632,7 @@ export function YouTubeSession() {
                     }).catch(console.error);
                   }
                   setVideoId(null);
-                }} 
+                }}
                 className="gap-2 text-muted-foreground hover:text-foreground"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -644,8 +644,8 @@ export function YouTubeSession() {
                 </p>
               )}
             </div>
-            <VideoPlayer 
-              videoId={videoId} 
+            <VideoPlayer
+              videoId={videoId}
               onReady={(e) => setPlayer(e.target)}
               onTimeUpdate={setCurrentTime}
             />
@@ -665,9 +665,9 @@ export function YouTubeSession() {
               <div className="flex items-center gap-1">
                 {!hasAnyTranslation ? (
                   <div className="flex gap-1">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={handleSmartTranslate}
                       disabled={translating || transcript.length === 0}
                       className="gap-1.5 text-xs h-7"
@@ -675,9 +675,9 @@ export function YouTubeSession() {
                       <Languages className="h-3 w-3" />
                       翻译
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={handleTranslateAll}
                       disabled={translating || transcript.length === 0}
                       className="text-xs h-7 text-muted-foreground"
@@ -696,14 +696,14 @@ export function YouTubeSession() {
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <span>{translatedCount}/{totalCount}</span>
                         <div className="w-12 h-1 bg-secondary rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className="h-full bg-primary transition-all"
                             style={{ width: `${overallProgress}%` }}
                           />
                         </div>
                       </div>
                     )}
-                    <Button 
+                    <Button
                       variant={showTranslation ? "default" : "outline"}
                       size="sm"
                       onClick={() => setShowTranslation(!showTranslation)}
@@ -719,7 +719,7 @@ export function YouTubeSession() {
                 )}
               </div>
             </div>
-            
+
             {translationProgress && (
               <div className="mb-2 p-2 bg-secondary/50 rounded-md">
                 <div className="flex items-center justify-between text-xs mb-1">
@@ -734,9 +734,9 @@ export function YouTubeSession() {
                 <Progress value={translationProgress.percentage} className="h-1" />
               </div>
             )}
-            
-            <TranscriptView 
-              transcript={transcript} 
+
+            <TranscriptView
+              transcript={transcript}
               currentTime={currentTime}
               onWordClick={handleWordClick}
               onSeek={handleSeek}
@@ -769,24 +769,24 @@ export function YouTubeSession() {
                       </div>
                     ) : analysisResult ? (
                       <>
-                        {analysisResult.original_form && 
-                         analysisResult.original_form.toLowerCase() !== analysisResult.term.toLowerCase() && (
-                          <p className="text-xs text-muted-foreground">
-                            {analysisResult.original_form} → {analysisResult.term}
-                          </p>
-                        )}
+                        {analysisResult.original_form &&
+                          analysisResult.original_form.toLowerCase() !== analysisResult.term.toLowerCase() && (
+                            <p className="text-xs text-muted-foreground">
+                              {analysisResult.original_form} → {analysisResult.term}
+                            </p>
+                          )}
                         <div>
                           <p className="text-xs text-muted-foreground mb-1">释义</p>
                           <p className="font-medium">{analysisResult.meaning}</p>
                         </div>
-                        
+
                         {analysisResult.background_info && (
                           <div className="bg-secondary/50 p-3 rounded-md">
                             <p className="text-xs text-muted-foreground mb-1">背景</p>
                             <p className="text-sm">{analysisResult.background_info}</p>
                           </div>
                         )}
-                        
+
                         <div className="bg-secondary/30 p-3 rounded-md">
                           <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Context</p>
                           <p className="text-sm leading-relaxed">
@@ -798,7 +798,7 @@ export function YouTubeSession() {
                             </p>
                           )}
                         </div>
-                        
+
                         <div>
                           <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1.5">
                             <Tag className="h-3 w-3" />
@@ -823,10 +823,10 @@ export function YouTubeSession() {
                         已追加（共 {saveStatus.contextCount} 语境）
                       </Badge>
                     )}
-                    
+
                     {analysisResult && !analyzing && (
-                      <Button 
-                        className="w-full gap-2" 
+                      <Button
+                        className="w-full gap-2"
                         onClick={handleSaveCard}
                         disabled={saveStatus !== null}
                         variant={saveStatus !== null ? "secondary" : "default"}

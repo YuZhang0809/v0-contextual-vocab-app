@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Search, Youtube, Plus, Check, X, Layers, Languages, Eye, EyeOff, Tag, ArrowLeft } from 'lucide-react';
+import { Loader2, Search, Youtube, Plus, Check, X, Layers, Languages, Eye, EyeOff, Tag, ArrowLeft, Trash2 } from 'lucide-react';
 import { useCards } from '@/hooks/use-cards';
 import { createWatchSession, updateWatchSession, fetchVideoMetadata } from '@/hooks/use-watch-sessions';
 import { WatchSession, VideoSource } from '@/lib/types';
@@ -285,6 +285,35 @@ export function YouTubeSession() {
   const handleSmartTranslate = () => {
     setShowTranslation(true);
     translateAroundCurrentPosition();
+  };
+
+  const handleClearCache = async () => {
+    if (!videoId) return;
+    
+    const confirmed = window.confirm('确定要清除当前视频的翻译缓存吗？清除后需要重新翻译。');
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/youtube/translation-cache?video_id=${videoId}`, {
+        method: 'DELETE',
+      });
+      
+      if (res.ok) {
+        // 清除本地翻译状态
+        setTranscript(prev => prev.map(seg => ({
+          ...seg,
+          translation: undefined,
+          translationStatus: 'pending' as const,
+        })));
+        setShowTranslation(false);
+        setCacheStatus('none');
+        translatingRangeRef.current.clear();
+        lastSaveRef.current = 0;
+        console.log('Translation cache cleared');
+      }
+    } catch (error) {
+      console.error('Failed to clear cache:', error);
+    }
   };
 
   useEffect(() => {
@@ -714,6 +743,15 @@ export function YouTubeSession() {
                       ) : (
                         <><Eye className="h-3 w-3" /> 显示</>
                       )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearCache}
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      title="清除翻译缓存"
+                    >
+                      <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
                 )}

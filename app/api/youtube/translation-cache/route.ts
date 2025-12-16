@@ -51,6 +51,41 @@ export async function GET(req: Request) {
   }
 }
 
+// DELETE: 清除翻译缓存
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const videoId = searchParams.get("video_id")
+
+    if (!videoId) {
+      return Response.json({ error: "video_id is required" }, { status: 400 })
+    }
+
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { error } = await supabase
+      .from("video_translations")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("video_id", videoId)
+
+    if (error) {
+      console.error("Cache delete error:", error)
+      return Response.json({ error: "Failed to delete cache" }, { status: 500 })
+    }
+
+    return Response.json({ success: true, message: "Cache cleared" })
+  } catch (error) {
+    console.error("Translation cache DELETE error:", error)
+    return Response.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
 // POST: 保存翻译到缓存
 export async function POST(req: Request) {
   try {

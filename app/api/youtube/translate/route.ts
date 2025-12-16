@@ -50,20 +50,24 @@ ${contextAfter.length > 0 ? `后文：${contextAfter.map(s => s.text).join(' ')}
 `
   }
 
-  const prompt = `你是一位专业的英中翻译专家。请将以下英文字幕逐句翻译成简体中文。
+  const prompt = `你是一位专业的英中翻译专家。请将以下英文字幕片段逐条翻译成简体中文。
 
-要求：
-1. 保持翻译自然流畅，符合中文表达习惯
-2. 如遇俚语、习语，翻译其实际含义而非字面意思
-3. 保持原文的语气和风格
-4. 每句翻译独立成行，顺序与原文一一对应
-5. 返回的翻译数量必须与输入句子数量完全相同（${batch.length}句）
-6. **重要**：参考上下文理解不完整的句子，确保翻译连贯
+**关键规则（必须严格遵守）**：
+1. 输入有 ${batch.length} 个片段，你必须输出恰好 ${batch.length} 条翻译
+2. 每个片段单独翻译，即使它只是句子的一部分
+3. 不要合并多个片段！例如：
+   - 输入片段1: "Hey everyone, welcome back to the Asian"
+   - 输入片段2: "Factory, the podcast where we go beyond"
+   - 错误输出: 只输出1条 "大家好，欢迎回到亚洲工厂播客..."
+   - 正确输出: 片段1→"大家好，欢迎回到亚洲" 片段2→"工厂播客，在这里我们超越"
+4. 参考上下文理解意思，但翻译要按片段断开
+5. 如遇俚语、习语，翻译其实际含义
+6. 保持原文的语气和风格
 ${contextSection}
-【需要翻译的字幕】
-${batch.map((seg, idx) => `${idx + 1}. ${seg.text}`).join('\n')}
+【需要翻译的 ${batch.length} 个字幕片段】
+${batch.map((seg, idx) => `[${idx + 1}] ${seg.text}`).join('\n')}
 
-请返回 ${batch.length} 条翻译。`
+请返回恰好 ${batch.length} 条翻译，每条对应一个输入片段。`
 
   try {
     const { object } = await generateObject({

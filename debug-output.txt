@@ -1,0 +1,13 @@
+Testing video ID: 1HalL6d2gqQ
+Attempting with default client...
+Default client failed: This video is unavailable
+Attempting with ANDROID client...
+Getting info...
+Fetch failed: This video is unavailable
+Full error: {
+  "stack": "Error: This video is unavailable\n    at new MediaInfo (file:///D:/Projects/v0-contextual-vocab-app/node_modules/youtubei.js/dist/src/core/mixins/MediaInfo.js:30:19)\n    at new VideoInfo (file:///D:/Projects/v0-contextual-vocab-app/node_modules/youtubei.js/dist/src/parser/youtube/VideoInfo.js:45:9)\n    at Innertube.getInfo (file:///D:/Projects/v0-contextual-vocab-app/node_modules/youtubei.js/dist/src/Innertube.js:67:16)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async testFetch (D:\\Projects\\v0-contextual-vocab-app\\scripts\\debug-youtubei.js:38:22)",
+  "message": "This video is unavailable",
+  "date": "2025-12-16T11:42:01.835Z",
+  "version": "16.0.1",
+  "info": {}
+}

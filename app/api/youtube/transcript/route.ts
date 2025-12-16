@@ -21,12 +21,12 @@ export async function POST(req: Request) {
       // 使用 youtube-caption-extractor npm 包获取字幕
       // 优先尝试英文，如果没有则尝试不指定语言（获取默认字幕）
       let subtitles = await getSubtitles({ videoID: videoId, lang: 'en' });
-      
+
       // 如果没有英文字幕，尝试获取任意可用字幕
       if (!subtitles || subtitles.length === 0) {
         subtitles = await getSubtitles({ videoID: videoId });
       }
-      
+
       if (!subtitles || subtitles.length === 0) {
         return NextResponse.json(
           { error: '该视频没有可用的字幕' },
@@ -45,9 +45,9 @@ export async function POST(req: Request) {
 
     } catch (error: any) {
       console.error('Transcript fetch error:', error);
-      
+
       const errorMessage = error.message || '';
-      
+
       // 检查常见错误
       if (errorMessage.includes('disabled') || errorMessage.includes('Disabled')) {
         return NextResponse.json(
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
           { status: 403 }
         );
       }
-      
+
       if (errorMessage.includes('not found') || errorMessage.includes('No captions')) {
         return NextResponse.json(
           { error: '该视频没有可用的字幕' },

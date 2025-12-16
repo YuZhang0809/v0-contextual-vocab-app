@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSubtitles } from 'youtube-caption-extractor';
+import { YoutubeTranscript } from 'youtube-transcript';
 
 export async function POST(req: Request) {
   try {
@@ -18,16 +18,13 @@ export async function POST(req: Request) {
     }
 
     try {
-      // 使用 youtube-caption-extractor npm 包获取字幕
-      // 优先尝试英文，如果没有则尝试不指定语言（获取默认字幕）
-      let subtitles = await getSubtitles({ videoID: videoId, lang: 'en' });
+      // 使用 youtube-transcript 包获取字幕
+      // 这个库使用 YouTube 的内部 API，在 Vercel 上更稳定
+      const transcriptItems = await YoutubeTranscript.fetchTranscript(videoId, {
+        lang: 'en',
+      });
 
-      // 如果没有英文字幕，尝试获取任意可用字幕
-      if (!subtitles || subtitles.length === 0) {
-        subtitles = await getSubtitles({ videoID: videoId });
-      }
-
-      if (!subtitles || subtitles.length === 0) {
+      if (!transcriptItems || transcriptItems.length === 0) {
         return NextResponse.json(
           { error: '该视频没有可用的字幕' },
           { status: 404 }
@@ -35,10 +32,10 @@ export async function POST(req: Request) {
       }
 
       // 转换为我们的格式
-      const transcript = subtitles.map((item) => ({
+      const transcript = transcriptItems.map((item) => ({
         text: item.text,
-        offset: Math.round(parseFloat(item.start) * 1000),
-        duration: Math.round(parseFloat(item.dur) * 1000)
+        offset: Math.round(item.offset),
+        duration: Math.round(item.duration)
       }));
 
       return NextResponse.json({ transcript });
@@ -56,10 +53,18 @@ export async function POST(req: Request) {
         );
       }
 
-      if (errorMessage.includes('not found') || errorMessage.includes('No captions')) {
+      if (errorMessage.includes('not found') || errorMessage.includes('No captions') || errorMessage.includes('Could not find')) {
         return NextResponse.json(
           { error: '该视频没有可用的字幕' },
           { status: 404 }
+        );
+      }
+
+      // 如果是 YouTube 封锁错误，提供更明确的信息
+      if (errorMessage.includes('Too Many Requests') || errorMessage.includes('429')) {
+        return NextResponse.json(
+          { error: 'YouTube 请求过于频繁，请稍后再试', details: errorMessage },
+          { status: 429 }
         );
       }
 

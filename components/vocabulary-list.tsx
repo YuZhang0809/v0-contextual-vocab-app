@@ -557,6 +557,27 @@ export function VocabularyList() {
                             </p>
                           )}
 
+                          {/* Grammar Analysis */}
+                          {context.grammar_analysis && (context.grammar_analysis.grammar || context.grammar_analysis.nuance) && (
+                            <div className="pl-3 mb-3 p-3 bg-primary/5 rounded-md border border-primary/10">
+                              <div className="flex items-center gap-2 text-xs text-primary mb-2 uppercase tracking-wide font-medium">
+                                <BookOpen className="h-3 w-3" />
+                                语法分析
+                              </div>
+                              <div className="space-y-2 text-sm text-muted-foreground">
+                                {context.grammar_analysis.grammar && (
+                                  <p><span className="font-medium text-foreground/70">结构：</span>{context.grammar_analysis.grammar}</p>
+                                )}
+                                {context.grammar_analysis.nuance && (
+                                  <p><span className="font-medium text-foreground/70">解读：</span>{context.grammar_analysis.nuance}</p>
+                                )}
+                                {context.grammar_analysis.cultural_background && (
+                                  <p><span className="font-medium text-foreground/70">背景：</span>{context.grammar_analysis.cultural_background}</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
                           {/* Tags */}
                           {context.tags && context.tags.length > 0 && (
                             <div className="pl-3 mb-3">

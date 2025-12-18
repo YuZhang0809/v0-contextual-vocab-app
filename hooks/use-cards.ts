@@ -56,6 +56,7 @@ export function useCards() {
       sentence_translation: cardData.sentence_translation,
       source: cardData.source || "manual",
       tags: cardData.tags,
+      grammar_analysis: cardData.grammar_analysis,
       added_at: Date.now(),
       // 初始化 SRS 字段
       ...initContextSRS(),

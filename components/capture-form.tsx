@@ -82,6 +82,16 @@ export function CaptureForm() {
     setSavingIndex(index)
     try {
       const tags = itemTags.get(index) || []
+      
+      // 如果是句子模式且有语法分析，一并保存
+      const grammarAnalysis = analysisResult?.is_sentence && analysisResult?.sentence_analysis
+        ? {
+            grammar: analysisResult.sentence_analysis.grammar,
+            nuance: analysisResult.sentence_analysis.nuance,
+            cultural_background: analysisResult.sentence_analysis.cultural_background,
+          }
+        : undefined
+      
       const result = await addCard({
         word: item.term,
         sentence: item.example_sentence,
@@ -89,6 +99,7 @@ export function CaptureForm() {
         sentence_translation: item.example_sentence_translation,
         source: "capture",
         tags: tags.length > 0 ? tags : undefined,
+        grammar_analysis: grammarAnalysis,
       })
 
       setSavedStatuses((prev) => {

@@ -60,6 +60,13 @@ export type SourceType = string | VideoSource
 // 词汇卡片相关类型
 // ============================================================
 
+// 语法分析结构
+export interface GrammarAnalysis {
+  grammar?: string              // 语法结构分析
+  nuance?: string               // 语义细微差别
+  cultural_background?: string  // 文化背景
+}
+
 // 单个语境/上下文 - 每个语境拥有独立的 SRS 复习进度
 export interface WordContext {
   sentence: string              // 例句
@@ -68,6 +75,10 @@ export interface WordContext {
   source?: SourceType           // 来源：字符串或 VideoSource 对象
   tags?: string[]               // 标签数组（预设或自定义）
   added_at: number              // 添加时间戳
+  
+  // 语法分析（可选）
+  grammar_analysis?: GrammarAnalysis
+  
   // 独立 SRS 字段 - 每个语境单独追踪复习进度
   review_status: CardStatus
   interval: number              // 当前间隔（毫秒）
@@ -108,6 +119,7 @@ export interface AddCardInput {
   sentence_translation?: string
   source?: SourceType           // 支持字符串或 VideoSource
   tags?: string[]               // 标签数组
+  grammar_analysis?: GrammarAnalysis  // 语法分析（可选）
 }
 
 // ============================================================

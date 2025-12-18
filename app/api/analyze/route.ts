@@ -100,6 +100,14 @@ Requirements:
 - 如遇俚语、习语、隐喻，需解释其深层含义而非字面翻译
 - 如果句子有文化背景或双关语，请在翻译中体现其真正意图
 - example_sentence_translation 必须是通顺自然的中文
+
+**语法分析要求（sentence_analysis）**:
+请同时分析 example_sentence 的语法结构：
+- 'grammar': 分析这个句子的关键语法结构（如时态、从句类型、特殊句式等），用中文解释
+- 'nuance': 解释这个句子的语气、表达方式、或为什么使用特定的词汇/结构，用中文解释
+- 'cultural_background': 如果有相关的文化背景或习惯用法，提供说明（可选，用中文）
+
+这有助于学习者不仅理解单词，也理解整个句子的结构和表达方式。
 `
   } else {
     // Mode: General Analysis (Original Logic)

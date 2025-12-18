@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { VideoPlayer } from '@/components/youtube/video-player';
 import { TranscriptView } from '@/components/youtube/transcript-view';
 import { Input } from '@/components/ui/input';
@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Search, Youtube, Plus, Check, X, Layers, Languages, Eye, EyeOff, Tag, ArrowLeft, Trash2 } from 'lucide-react';
+import { Loader2, Search, Youtube, Plus, Check, X, Layers, Languages, Eye, EyeOff, Tag, ArrowLeft, Trash2, Clock, BookOpen, Play } from 'lucide-react';
 import { useCards } from '@/hooks/use-cards';
-import { createWatchSession, updateWatchSession, fetchVideoMetadata } from '@/hooks/use-watch-sessions';
+import { createWatchSession, updateWatchSession, fetchVideoMetadata, useWatchSessions } from '@/hooks/use-watch-sessions';
 import { WatchSession, VideoSource } from '@/lib/types';
 import { TagSelector } from '@/components/ui/tag-selector';
 
@@ -33,6 +33,19 @@ interface AnalysisItem {
   example_sentence_translation?: string;
 }
 
+interface SentenceAnalysis {
+  grammar?: string;
+  nuance?: string;
+  cultural_background?: string;
+}
+
+interface AnalysisResult {
+  is_sentence: boolean;
+  sentence_translation?: string;
+  sentence_analysis?: SentenceAnalysis;
+  items: AnalysisItem[];
+}
+
 type SaveStatus = { type: "new" } | { type: "appended"; contextCount: number } | null;
 
 const TRANSLATE_AHEAD = 30;
@@ -47,7 +60,7 @@ export function YouTubeSession() {
   const [player, setPlayer] = useState<any>(null);
 
   const [analyzing, setAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<AnalysisItem | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
 
   const [translating, setTranslating] = useState(false);
@@ -69,14 +82,159 @@ export function YouTubeSession() {
   } | null>(null);
   const wordsSavedRef = useRef(0);
 
-  const { addCard } = useCards();
+  const { addCard, cards } = useCards();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  // 获取最近的学习记录（去重，每个视频只显示最新一次）
+  const { sessions: rawSessions, isLoading: sessionsLoading } = useWatchSessions({ limit: 50 });
+  
+  const recentSessions = useMemo(() => {
+    const seenVideoIds = new Set<string>();
+    const uniqueSessions: WatchSession[] = [];
+    
+    // rawSessions 已按时间降序排列，所以第一次遇到的就是最新的
+    for (const session of rawSessions) {
+      if (!seenVideoIds.has(session.video_id)) {
+        seenVideoIds.add(session.video_id);
+        uniqueSessions.push(session);
+        if (uniqueSessions.length >= 12) break;
+      }
+    }
+    
+    return uniqueSessions;
+  }, [rawSessions]);
 
   const extractVideoId = (inputUrl: string) => {
     const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
     const match = inputUrl.match(regExp);
     return (match && match[7].length === 11) ? match[7] : null;
+  };
+
+  // 从历史记录加载视频
+  const handleLoadFromHistory = (session: WatchSession) => {
+    const youtubeUrl = `https://www.youtube.com/watch?v=${session.video_id}`;
+    setUrl(youtubeUrl);
+    // 直接调用加载逻辑
+    handleLoadVideoById(session.video_id);
+  };
+
+  // 通过视频 ID 加载视频
+  const handleLoadVideoById = async (id: string) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    setVideoId(id);
+    setLoading(true);
+    setTranscript([]);
+    setShowTranslation(false);
+    setTranslationProgress(null);
+    setCacheStatus(null);
+    translatingRangeRef.current.clear();
+    lastSaveRef.current = 0;
+    setWatchSession(null);
+    setVideoMetadata(null);
+    wordsSavedRef.current = 0;
+
+    try {
+      const [transcriptRes, metadata, cachedTranslations] = await Promise.all([
+        fetch('/api/youtube/transcript', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: `https://www.youtube.com/watch?v=${id}` })
+        }),
+        fetchVideoMetadata(id).catch(err => {
+          console.warn('Failed to fetch metadata:', err);
+          return null;
+        }),
+        checkTranslationCache(id),
+      ]);
+
+      if (!transcriptRes.ok) {
+        const errorData = await transcriptRes.json();
+        throw new Error(errorData.details || errorData.error || "Failed to load transcript");
+      }
+
+      const transcriptData = await transcriptRes.json();
+
+      if (cachedTranslations && Object.keys(cachedTranslations).length > 0) {
+        const cachedCount = Object.keys(cachedTranslations).length;
+        setTranscript(transcriptData.transcript.map((seg: TranscriptSegment, idx: number) => {
+          const cachedTranslation = cachedTranslations[String(idx)];
+          if (cachedTranslation) {
+            return {
+              ...seg,
+              translation: cachedTranslation,
+              translationStatus: 'done' as const,
+            };
+          }
+          return {
+            ...seg,
+            translationStatus: 'pending' as const,
+          };
+        }));
+        console.log(`Loaded ${cachedCount}/${transcriptData.transcript.length} translations from cache`);
+      } else {
+        setTranscript(transcriptData.transcript.map((seg: TranscriptSegment) => ({
+          ...seg,
+          translationStatus: 'pending' as const,
+        })));
+      }
+
+      if (metadata) {
+        setVideoMetadata({
+          title: metadata.title,
+          channel_name: metadata.channel_name,
+          thumbnail_url: metadata.thumbnail_url,
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      const errorMessage = e instanceof Error ? e.message : "Could not load subtitles.";
+      alert(errorMessage);
+      setVideoId(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 计算某个视频保存了多少单词
+  const getWordsCountForSession = (session: WatchSession): number => {
+    let count = 0;
+    cards.forEach(card => {
+      card.contexts.forEach(context => {
+        if (typeof context.source === 'object' && context.source.type === 'youtube') {
+          if (context.source.session_id === session.id || context.source.video_id === session.video_id) {
+            count++;
+          }
+        }
+      });
+    });
+    return count;
+  };
+
+  // 格式化时间
+  const formatDuration = (ms: number): string => {
+    const mins = Math.floor(ms / 60000);
+    if (mins < 60) return `${mins}分钟`;
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    return remainingMins > 0 ? `${hours}小时${remainingMins}分钟` : `${hours}小时`;
+  };
+
+  const formatRelativeTime = (timestamp: number): string => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    if (minutes < 1) return '刚刚';
+    if (minutes < 60) return `${minutes}分钟前`;
+    if (hours < 24) return `${hours}小时前`;
+    if (days < 7) return `${days}天前`;
+    return new Date(timestamp).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
   };
 
   const hasAnyTranslation = transcript.some(seg => seg.translation);
@@ -526,9 +684,9 @@ export function YouTubeSession() {
         throw new Error(errorData.details || "Analysis failed");
       }
 
-      const data = await res.json();
+      const data: AnalysisResult = await res.json();
       if (data.items && data.items.length > 0) {
-        setAnalysisResult(data.items[0]);
+        setAnalysisResult(data);
       }
     } catch (e) {
       console.error(e);
@@ -539,7 +697,8 @@ export function YouTubeSession() {
   };
 
   const handleSaveCard = async () => {
-    if (!analysisResult || !videoId) return;
+    const currentItem = analysisResult?.items?.[0];
+    if (!currentItem || !videoId) return;
 
     let currentSession = watchSession;
 
@@ -566,14 +725,24 @@ export function YouTubeSession() {
       }
       : `youtube:${videoId}`;
 
+    // 构建语法分析数据
+    const grammarAnalysis = analysisResult?.sentence_analysis
+      ? {
+          grammar: analysisResult.sentence_analysis.grammar,
+          nuance: analysisResult.sentence_analysis.nuance,
+          cultural_background: analysisResult.sentence_analysis.cultural_background,
+        }
+      : undefined;
+
     try {
       const result = await addCard({
-        word: analysisResult.term,
-        sentence: analysisResult.example_sentence,
-        meaning_cn: analysisResult.meaning,
-        sentence_translation: analysisResult.example_sentence_translation,
+        word: currentItem.term,
+        sentence: currentItem.example_sentence,
+        meaning_cn: currentItem.meaning,
+        sentence_translation: currentItem.example_sentence_translation,
         source,
         tags: selectedTags.length > 0 ? selectedTags : undefined,
+        grammar_analysis: grammarAnalysis,
       });
 
       if (result.isNew) {
@@ -619,7 +788,7 @@ export function YouTubeSession() {
   return (
     <div className="space-y-6 max-w-[1800px] mx-auto h-[calc(100vh-8rem)] flex flex-col">
       {!videoId ? (
-        <div className="flex flex-col items-center justify-center h-full space-y-8 animate-fade-in">
+        <div className="flex flex-col items-center h-full py-8 space-y-8 animate-fade-in overflow-y-auto">
           <div className="p-5 rounded-xl bg-secondary">
             <Youtube className="h-12 w-12 text-muted-foreground" />
           </div>
@@ -634,12 +803,102 @@ export function YouTubeSession() {
               placeholder="粘贴 YouTube 视频链接..."
               value={url}
               onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && url.trim()) {
+                  handleLoadVideo();
+                }
+              }}
               className="h-11"
             />
             <Button onClick={handleLoadVideo} disabled={loading} className="h-11 px-6">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             </Button>
           </div>
+
+          {/* 学习历史 Tiles */}
+          {recentSessions.length > 0 && (
+            <div className="w-full max-w-4xl space-y-4 mt-8">
+              <div className="flex items-center gap-2 px-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-medium text-muted-foreground">最近学习</h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {recentSessions.map((session) => {
+                  const wordsCount = session.words_saved || getWordsCountForSession(session);
+                  const duration = session.ended_at 
+                    ? formatDuration(session.ended_at - session.started_at)
+                    : null;
+                  
+                  return (
+                    <button
+                      key={session.id}
+                      onClick={() => handleLoadFromHistory(session)}
+                      disabled={loading}
+                      className="group relative bg-secondary/30 hover:bg-secondary/60 rounded-lg overflow-hidden text-left transition-all hover:shadow-md border border-transparent hover:border-primary/20 disabled:opacity-50"
+                    >
+                      {/* Thumbnail */}
+                      <div className="aspect-video relative overflow-hidden">
+                        {session.thumbnail_url ? (
+                          <img
+                            src={session.thumbnail_url}
+                            alt={session.video_title || 'Video thumbnail'}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-secondary flex items-center justify-center">
+                            <Youtube className="h-8 w-8 text-muted-foreground/50" />
+                          </div>
+                        )}
+                        {/* Play overlay */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity p-3 rounded-full bg-white/90">
+                            <Play className="h-5 w-5 text-foreground fill-current" />
+                          </div>
+                        </div>
+                        {/* Duration badge */}
+                        {duration && (
+                          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px]">
+                            {duration}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Info */}
+                      <div className="p-3 space-y-1.5">
+                        <h4 className="text-sm font-medium line-clamp-2 leading-tight">
+                          {session.video_title || session.video_id}
+                        </h4>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1 truncate">
+                            {session.channel_name && (
+                              <>
+                                <Youtube className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{session.channel_name}</span>
+                              </>
+                            )}
+                          </span>
+                          <span className="shrink-0">{formatRelativeTime(session.started_at)}</span>
+                        </div>
+                        {wordsCount > 0 && (
+                          <Badge variant="secondary" className="text-[10px] font-normal gap-1">
+                            <BookOpen className="h-2.5 w-2.5" />
+                            {wordsCount} 词
+                          </Badge>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {sessionsLoading && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              加载学习记录...
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
@@ -784,15 +1043,15 @@ export function YouTubeSession() {
             {/* Analysis Overlay */}
             {showAnalysis && (
               <div className="absolute inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-background/90 backdrop-blur-sm animate-fade-in">
-                <Card className="w-full max-w-md animate-fade-in-scale">
+                <Card className="w-full max-w-md animate-fade-in-scale max-h-[85vh] overflow-y-auto">
                   <CardHeader className="flex flex-row items-start justify-between pb-3">
                     <div className="flex items-baseline gap-2">
                       <CardTitle className="text-lg font-mono">
-                        {analyzing ? "分析中..." : analysisResult?.term}
+                        {analyzing ? "分析中..." : analysisResult?.items?.[0]?.term}
                       </CardTitle>
-                      {!analyzing && analysisResult?.part_of_speech && (
+                      {!analyzing && analysisResult?.items?.[0]?.part_of_speech && (
                         <span className="text-xs text-muted-foreground">
-                          {analysisResult.part_of_speech}
+                          {analysisResult.items[0].part_of_speech}
                         </span>
                       )}
                     </div>
@@ -805,37 +1064,58 @@ export function YouTubeSession() {
                       <div className="flex justify-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                       </div>
-                    ) : analysisResult ? (
+                    ) : analysisResult?.items?.[0] ? (
                       <>
-                        {analysisResult.original_form &&
-                          analysisResult.original_form.toLowerCase() !== analysisResult.term.toLowerCase() && (
+                        {analysisResult.items[0].original_form &&
+                          analysisResult.items[0].original_form.toLowerCase() !== analysisResult.items[0].term.toLowerCase() && (
                             <p className="text-xs text-muted-foreground">
-                              {analysisResult.original_form} → {analysisResult.term}
+                              {analysisResult.items[0].original_form} → {analysisResult.items[0].term}
                             </p>
                           )}
                         <div>
                           <p className="text-xs text-muted-foreground mb-1">释义</p>
-                          <p className="font-medium">{analysisResult.meaning}</p>
+                          <p className="font-medium">{analysisResult.items[0].meaning}</p>
                         </div>
 
-                        {analysisResult.background_info && (
+                        {analysisResult.items[0].background_info && (
                           <div className="bg-secondary/50 p-3 rounded-md">
                             <p className="text-xs text-muted-foreground mb-1">背景</p>
-                            <p className="text-sm">{analysisResult.background_info}</p>
+                            <p className="text-sm">{analysisResult.items[0].background_info}</p>
                           </div>
                         )}
 
                         <div className="bg-secondary/30 p-3 rounded-md">
                           <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Context</p>
                           <p className="text-sm leading-relaxed">
-                            &quot;{analysisResult.example_sentence}&quot;
+                            &quot;{analysisResult.items[0].example_sentence}&quot;
                           </p>
-                          {analysisResult.example_sentence_translation && (
+                          {analysisResult.items[0].example_sentence_translation && (
                             <p className="text-sm text-muted-foreground mt-2 pt-2 border-t border-border/30">
-                              {analysisResult.example_sentence_translation}
+                              {analysisResult.items[0].example_sentence_translation}
                             </p>
                           )}
                         </div>
+
+                        {/* 语法分析区域 */}
+                        {analysisResult.sentence_analysis && (analysisResult.sentence_analysis.grammar || analysisResult.sentence_analysis.nuance) && (
+                          <div className="p-3 bg-primary/5 rounded-md border border-primary/10">
+                            <p className="text-xs text-primary uppercase tracking-wide font-medium mb-2 flex items-center gap-1">
+                              <BookOpen className="h-3 w-3" />
+                              语法分析
+                            </p>
+                            <div className="space-y-2 text-sm text-muted-foreground">
+                              {analysisResult.sentence_analysis.grammar && (
+                                <p><span className="font-medium text-foreground/70">结构：</span>{analysisResult.sentence_analysis.grammar}</p>
+                              )}
+                              {analysisResult.sentence_analysis.nuance && (
+                                <p><span className="font-medium text-foreground/70">解读：</span>{analysisResult.sentence_analysis.nuance}</p>
+                              )}
+                              {analysisResult.sentence_analysis.cultural_background && (
+                                <p><span className="font-medium text-foreground/70">背景：</span>{analysisResult.sentence_analysis.cultural_background}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
                         <div>
                           <p className="text-xs text-muted-foreground flex items-center gap-1 mb-1.5">
@@ -862,7 +1142,7 @@ export function YouTubeSession() {
                       </Badge>
                     )}
 
-                    {analysisResult && !analyzing && (
+                    {analysisResult?.items?.[0] && !analyzing && (
                       <Button
                         className="w-full gap-2"
                         onClick={handleSaveCard}

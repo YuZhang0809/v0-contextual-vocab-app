@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Volume2, Eye, Lightbulb, Play, X } from "lucide-react"
+import { Volume2, Eye, Lightbulb, Play, X, BookOpen } from "lucide-react"
 import type { ReviewGrade, ReviewMode, ReviewUnit } from "@/lib/types"
 import { isVideoSource } from "@/lib/types"
 import { VideoPlayer } from "@/components/youtube/video-player"
@@ -198,6 +198,27 @@ export function ReviewCard({ unit, mode, onGrade }: ReviewCardProps) {
                 <div className="bg-secondary/50 p-4 rounded-md">
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5">句子翻译</p>
                   <p className="text-sm leading-relaxed">{currentTranslation}</p>
+                </div>
+              )}
+              
+              {/* Grammar Analysis */}
+              {currentContext?.grammar_analysis && (currentContext.grammar_analysis.grammar || currentContext.grammar_analysis.nuance) && (
+                <div className="p-4 bg-primary/5 rounded-md border border-primary/10">
+                  <div className="flex items-center gap-2 text-xs text-primary mb-2 uppercase tracking-wide font-medium">
+                    <BookOpen className="h-3 w-3" />
+                    语法分析
+                  </div>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    {currentContext.grammar_analysis.grammar && (
+                      <p><span className="font-medium text-foreground/70">结构：</span>{currentContext.grammar_analysis.grammar}</p>
+                    )}
+                    {currentContext.grammar_analysis.nuance && (
+                      <p><span className="font-medium text-foreground/70">解读：</span>{currentContext.grammar_analysis.nuance}</p>
+                    )}
+                    {currentContext.grammar_analysis.cultural_background && (
+                      <p><span className="font-medium text-foreground/70">背景：</span>{currentContext.grammar_analysis.cultural_background}</p>
+                    )}
+                  </div>
                 </div>
               )}
               

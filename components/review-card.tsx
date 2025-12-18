@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Volume2, Eye, Lightbulb, Play, X, BookOpen } from "lucide-react"
+import { Volume2, Eye, Lightbulb, Play, X, BookOpen, RotateCcw } from "lucide-react"
 import type { ReviewGrade, ReviewMode, ReviewUnit } from "@/lib/types"
 import { isVideoSource } from "@/lib/types"
 import { VideoPlayer } from "@/components/youtube/video-player"
@@ -20,6 +20,7 @@ export function ReviewCard({ unit, mode, onGrade }: ReviewCardProps) {
   const [isFlipped, setIsFlipped] = useState(false)
   const [showVideoPlayer, setShowVideoPlayer] = useState(false)
   const [playerReady, setPlayerReady] = useState(false)
+  const playerRef = useRef<any>(null)
 
   const { card, contextIndex } = unit
 
@@ -50,12 +51,23 @@ export function ReviewCard({ unit, mode, onGrade }: ReviewCardProps) {
     return `${mins}:${String(secs).padStart(2, '0')}`
   }
 
-  // 当播放器准备好时，跳转到指定时间并播放
+  // 当播放器准备好时，跳转到指定时间并播放（提前1秒确保覆盖语境）
   const handlePlayerReady = useCallback((event: any) => {
     setPlayerReady(true)
+    playerRef.current = event.target
     if (videoSource) {
-      event.target.seekTo(videoSource.timestamp, true)
+      const seekTime = Math.max(0, videoSource.timestamp - 1)
+      event.target.seekTo(seekTime, true)
       event.target.playVideo()
+    }
+  }, [videoSource])
+
+  // 重播功能
+  const handleReplay = useCallback(() => {
+    if (playerRef.current && videoSource) {
+      const seekTime = Math.max(0, videoSource.timestamp - 1)
+      playerRef.current.seekTo(seekTime, true)
+      playerRef.current.playVideo()
     }
   }, [videoSource])
 
@@ -246,16 +258,27 @@ export function ReviewCard({ unit, mode, onGrade }: ReviewCardProps) {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">
-                          从 {formatTimestamp(videoSource.timestamp)} 开始播放
+                          从 {formatTimestamp(Math.max(0, videoSource.timestamp - 1))} 开始播放
                         </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setShowVideoPlayer(false)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs gap-1"
+                            onClick={handleReplay}
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            重播
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => setShowVideoPlayer(false)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                       <div className="rounded-lg overflow-hidden border border-border/50">
                         <VideoPlayer

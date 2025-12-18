@@ -113,7 +113,7 @@ export async function POST(req: Request) {
   }
 }
 
-// DELETE: 清除字幕缓存 (管理用途)
+// DELETE: 清除字幕缓存 (同时删除翻译缓存)
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
@@ -130,17 +130,34 @@ export async function DELETE(req: Request) {
       return Response.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { error } = await supabase
-      .from("video_transcripts")
-      .delete()
-      .eq("video_id", videoId)
+    // 同时删除字幕缓存和翻译缓存
+    const [transcriptResult, translationResult] = await Promise.all([
+      supabase
+        .from("video_transcripts")
+        .delete()
+        .eq("video_id", videoId),
+      supabase
+        .from("video_translations")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("video_id", videoId),
+    ])
 
-    if (error) {
-      console.error("Transcript cache delete error:", error)
-      return Response.json({ error: "Failed to delete cache" }, { status: 500 })
+    if (transcriptResult.error) {
+      console.error("Transcript cache delete error:", transcriptResult.error)
+      return Response.json({ error: "Failed to delete transcript cache" }, { status: 500 })
     }
 
-    return Response.json({ success: true, message: "Transcript cache cleared" })
+    if (translationResult.error) {
+      console.error("Translation cache delete error:", translationResult.error)
+      // 翻译缓存删除失败不影响主流程，只记录警告
+      console.warn("Translation cache deletion failed but transcript cache cleared")
+    }
+
+    return Response.json({ 
+      success: true, 
+      message: "Transcript and translation caches cleared" 
+    })
   } catch (error) {
     console.error("Transcript cache DELETE error:", error)
     return Response.json({ error: "Internal server error" }, { status: 500 })

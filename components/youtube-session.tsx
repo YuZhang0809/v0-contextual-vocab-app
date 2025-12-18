@@ -448,11 +448,12 @@ export function YouTubeSession() {
   const handleClearCache = async () => {
     if (!videoId) return;
     
-    const confirmed = window.confirm('确定要清除当前视频的翻译缓存吗？清除后需要重新翻译。');
+    const confirmed = window.confirm('确定要清除当前视频的字幕和翻译缓存吗？清除后需要重新加载。');
     if (!confirmed) return;
 
     try {
-      const res = await fetch(`/api/youtube/translation-cache?video_id=${videoId}`, {
+      // 调用 transcript-cache DELETE，它会同时删除字幕缓存和翻译缓存
+      const res = await fetch(`/api/youtube/transcript-cache?video_id=${videoId}`, {
         method: 'DELETE',
       });
       
@@ -467,7 +468,7 @@ export function YouTubeSession() {
         setCacheStatus('none');
         translatingRangeRef.current.clear();
         lastSaveRef.current = 0;
-        console.log('Translation cache cleared');
+        console.log('Transcript and translation caches cleared');
       }
     } catch (error) {
       console.error('Failed to clear cache:', error);
@@ -721,7 +722,7 @@ export function YouTubeSession() {
         type: "youtube",
         session_id: currentSession.id,
         video_id: videoId,
-        timestamp: Math.floor(currentTime),
+        timestamp: getCurrentSentenceStart(), // 使用智能句子起始时间
       }
       : `youtube:${videoId}`;
 
@@ -780,6 +781,36 @@ export function YouTubeSession() {
       player.playVideo();
     }
   };
+
+  // 智能获取句子起始时间（用于保存单词时记录更精确的语境起点）
+  const getCurrentSentenceStart = useCallback((): number => {
+    const currentIdx = transcript.findIndex((seg, i) => {
+      const segStart = seg.offset / 1000;
+      const nextSeg = transcript[i + 1];
+      const nextStart = nextSeg ? nextSeg.offset / 1000 : Infinity;
+      return currentTime >= segStart && currentTime < nextStart;
+    });
+    
+    if (currentIdx < 0) return Math.floor(currentTime);
+    
+    // 句末标点符号
+    const sentenceEnders = /[.!?。！？][\s"'）)]*$/;
+    const MAX_LOOKBACK = 5;          // 最多向前看 5 个段落
+    const FALLBACK_SECONDS = 4;      // 找不到标点时，回退 4 秒
+    
+    // 尝试找句子边界
+    for (let i = currentIdx - 1; i >= Math.max(0, currentIdx - MAX_LOOKBACK); i--) {
+      const prevText = transcript[i]?.text?.trim() || "";
+      if (sentenceEnders.test(prevText)) {
+        // 找到了！返回下一段（句子开头）的时间
+        return Math.floor(transcript[i + 1]?.offset / 1000);
+      }
+    }
+    
+    // 没找到标点 → 使用固定回退
+    const fallbackTime = Math.max(0, currentTime - FALLBACK_SECONDS);
+    return Math.floor(fallbackTime);
+  }, [currentTime, transcript]);
 
   const translatedCount = transcript.filter(seg => seg.translation).length;
   const totalCount = transcript.length;
@@ -1008,7 +1039,7 @@ export function YouTubeSession() {
                       size="sm"
                       onClick={handleClearCache}
                       className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                      title="清除翻译缓存"
+                      title="清除字幕和翻译缓存"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>

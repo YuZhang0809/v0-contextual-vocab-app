@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useRef } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -23,6 +23,7 @@ import {
   Play,
   ArrowUpDown,
   Filter,
+  RotateCcw,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -61,11 +62,25 @@ export function VocabularyList() {
   const [playingContextIndex, setPlayingContextIndex] = useState<number | null>(null)
   const [filterType, setFilterType] = useState<FilterType>("all")
   const [sortType, setSortType] = useState<SortType>("newest")
+  const playerRef = useRef<any>(null)
+  const currentVideoSourceRef = useRef<VideoSource | null>(null)
 
-  // 当播放器准备好时，跳转到指定时间并播放
+  // 当播放器准备好时，跳转到指定时间并播放（提前1秒确保覆盖语境）
   const handlePlayerReady = useCallback((event: any, videoSource: VideoSource) => {
-    event.target.seekTo(videoSource.timestamp, true)
+    playerRef.current = event.target
+    currentVideoSourceRef.current = videoSource
+    const seekTime = Math.max(0, videoSource.timestamp - 1)
+    event.target.seekTo(seekTime, true)
     event.target.playVideo()
+  }, [])
+
+  // 重播功能
+  const handleReplay = useCallback(() => {
+    if (playerRef.current && currentVideoSourceRef.current) {
+      const seekTime = Math.max(0, currentVideoSourceRef.current.timestamp - 1)
+      playerRef.current.seekTo(seekTime, true)
+      playerRef.current.playVideo()
+    }
   }, [])
 
   // 筛选和排序逻辑
@@ -592,16 +607,27 @@ export function VocabularyList() {
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-muted-foreground">
-                                      从 {formatTimestamp(context.source.timestamp)} 开始播放
+                                      从 {formatTimestamp(Math.max(0, context.source.timestamp - 1))} 开始播放
                                     </span>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 text-xs"
-                                      onClick={() => setPlayingContextIndex(null)}
-                                    >
-                                      关闭播放器
-                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 text-xs gap-1"
+                                        onClick={handleReplay}
+                                      >
+                                        <RotateCcw className="h-3 w-3" />
+                                        重播
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 text-xs"
+                                        onClick={() => setPlayingContextIndex(null)}
+                                      >
+                                        关闭
+                                      </Button>
+                                    </div>
                                   </div>
                                   <div className="rounded-lg overflow-hidden border border-border/50">
                                     <VideoPlayer

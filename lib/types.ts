@@ -131,3 +131,16 @@ export const getYouTubeLink = (source: SourceType | undefined): string | null =>
   }
   return null
 }
+
+// 判断 source 是否为 Podwise 链接
+export const isPodwiseLink = (source: SourceType | undefined): boolean => {
+  return typeof source === 'string' && source.includes('podwise.ai')
+}
+
+// 获取 Podwise 跳转链接（如果是 Podwise URL 则直接返回）
+export const getPodwiseLink = (source: SourceType | undefined): string | null => {
+  if (typeof source === 'string' && source.includes('podwise.ai')) {
+    return source
+  }
+  return null
+}

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      width: 380px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 0;
+      margin: 0;
+      background-color: #0a0a0a;
+      color: #fafafa;
+    }
+    .header {
+      padding: 16px;
+      border-bottom: 1px solid #27272a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header h2 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .header .logo {
+      width: 20px;
+      height: 20px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      border-radius: 4px;
+    }
+    .content {
+      padding: 16px;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: #a1a1aa;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    textarea, input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+      font-size: 13px;
+      background-color: #18181b;
+      color: #fafafa;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+    textarea:focus, input[type="text"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+    textarea {
+      min-height: 70px;
+      resize: vertical;
+    }
+    .hint {
+      font-size: 10px;
+      color: #71717a;
+      margin-top: 4px;
+    }
+    
+    /* Step indicator */
+    .step-indicator {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .step {
+      flex: 1;
+      height: 3px;
+      background: #27272a;
+      border-radius: 2px;
+    }
+    .step.active {
+      background: #3b82f6;
+    }
+    .step.done {
+      background: #22c55e;
+    }
+    
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: white;
+    }
+    .btn-primary:hover {
+      opacity: 0.9;
+    }
+    .btn-primary:disabled {
+      background: #27272a;
+      color: #71717a;
+      cursor: not-allowed;
+    }
+    .btn-secondary {
+      background: #27272a;
+      color: #fafafa;
+    }
+    .btn-secondary:hover {
+      background: #3f3f46;
+    }
+    
+    /* Word Selection List */
+    #wordSelectionArea {
+      display: none;
+    }
+    .word-list {
+      max-height: 280px;
+      overflow-y: auto;
+      margin-bottom: 12px;
+    }
+    .word-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px;
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .word-item:hover {
+      border-color: #3b82f6;
+    }
+    .word-item.selected {
+      border-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.1);
+    }
+    .word-item input[type="checkbox"] {
+      margin-top: 2px;
+      accent-color: #3b82f6;
+    }
+    .word-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .word-term {
+      font-weight: 600;
+      font-size: 14px;
+      color: #fafafa;
+      font-family: ui-monospace, monospace;
+    }
+    .word-pos {
+      font-size: 11px;
+      color: #71717a;
+      margin-left: 6px;
+    }
+    .word-meaning {
+      font-size: 12px;
+      color: #a1a1aa;
+      margin-top: 4px;
+    }
+    .word-context {
+      font-size: 11px;
+      color: #71717a;
+      margin-top: 4px;
+      font-style: italic;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    /* Actions row */
+    .actions-row {
+      display: flex;
+      gap: 8px;
+    }
+    .actions-row .btn {
+      flex: 1;
+    }
+    
+    /* Status */
+    #status {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: none;
+    }
+    .success {
+      background-color: rgba(34, 197, 94, 0.15);
+      color: #22c55e;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .error {
+      background-color: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .loading {
+      background-color: rgba(59, 130, 246, 0.15);
+      color: #3b82f6;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    
+    /* Selected count badge */
+    .selected-count {
+      font-size: 11px;
+      color: #71717a;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .selected-count strong {
+      color: #3b82f6;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo"></div>
+    <h2>ContextVocab Clipper</h2>
+  </div>
+  
+  <div class="content">
+    <div class="step-indicator">
+      <div class="step active" id="step1"></div>
+      <div class="step" id="step2"></div>
+    </div>
+    
+    <!-- Step 1: Input -->
+    <div id="inputArea">
+      <div class="form-group">
+        <label>Selected Text</label>
+        <textarea id="selection" placeholder="Select text on the page, then open this popup..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Focus Term (Optional)</label>
+        <input type="text" id="focus_term" placeholder="Specific word to look up...">
+        <div class="hint">Leave empty to analyze entire sentence</div>
+      </div>
+
+      <div class="form-group">
+        <label>Source</label>
+        <input type="text" id="source_url" readonly>
+        <div class="hint" id="timestampHint" style="display: none;"></div>
+      </div>
+
+      <button class="btn btn-primary" id="analyzeBtn">Analyze</button>
+    </div>
+    
+    <!-- Step 2: Word Selection -->
+    <div id="wordSelectionArea">
+      <div class="form-group">
+        <label>Select words to save</label>
+        <div class="word-list" id="wordList"></div>
+      </div>
+      
+      <div class="selected-count" id="selectedCount">
+        <strong>0</strong> word(s) selected
+      </div>
+      
+      <div class="actions-row">
+        <button class="btn btn-secondary" id="backBtn">← Back</button>
+        <button class="btn btn-primary" id="saveBtn" disabled>Save Selected</button>
+      </div>
+    </div>
+    
+    <div id="status"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

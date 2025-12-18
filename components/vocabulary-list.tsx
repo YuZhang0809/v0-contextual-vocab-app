@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,10 @@ import {
   Youtube,
   ExternalLink,
   Clock,
+  Headphones,
+  Play,
+  ArrowUpDown,
+  Filter,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -38,32 +42,113 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useCards } from "@/hooks/use-cards"
-import type { WordCard, CardStatus, SourceType } from "@/lib/types"
-import { isVideoSource, getYouTubeLink } from "@/lib/types"
+import type { WordCard, CardStatus, SourceType, WordContext } from "@/lib/types"
+import { isVideoSource, getYouTubeLink, getPodwiseLink, VideoSource } from "@/lib/types"
+import { VideoPlayer } from "@/components/youtube/video-player"
 import { formatDistanceToNow } from "date-fns"
 import { zhCN } from "date-fns/locale"
 import { TagDisplay } from "@/components/ui/tag-selector"
+
+// 筛选类型
+type FilterType = "all" | "due" | "graduated"
+// 排序类型
+type SortType = "newest" | "oldest" | "alphabetical" | "due_first"
 
 export function VocabularyList() {
   const { cards, removeCard, removeContext } = useCards()
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
+  const [playingContextIndex, setPlayingContextIndex] = useState<number | null>(null)
+  const [filterType, setFilterType] = useState<FilterType>("all")
+  const [sortType, setSortType] = useState<SortType>("newest")
 
-  const filteredCards = cards.filter((card) => {
-    const query = searchQuery.toLowerCase()
-    if (card.word.toLowerCase().includes(query)) return true
+  // 当播放器准备好时，跳转到指定时间并播放
+  const handlePlayerReady = useCallback((event: any, videoSource: VideoSource) => {
+    event.target.seekTo(videoSource.timestamp, true)
+    event.target.playVideo()
+  }, [])
+
+  // 筛选和排序逻辑
+  const filteredAndSortedCards = useMemo(() => {
+    const now = Date.now()
     
-    if (card.contexts && card.contexts.length > 0) {
-      return card.contexts.some(
-        (ctx) =>
-          ctx.sentence.toLowerCase().includes(query) ||
-          ctx.meaning_cn.includes(searchQuery)
-      )
+    // 第一步：搜索过滤
+    let result = cards.filter((card) => {
+      const query = searchQuery.toLowerCase()
+      if (card.word.toLowerCase().includes(query)) return true
+      
+      if (card.contexts && card.contexts.length > 0) {
+        return card.contexts.some(
+          (ctx) =>
+            ctx.sentence.toLowerCase().includes(query) ||
+            ctx.meaning_cn.includes(searchQuery)
+        )
+      }
+      return false
+    })
+
+    // 第二步：状态筛选
+    if (filterType !== "all") {
+      result = result.filter((card) => {
+        if (!card.contexts || card.contexts.length === 0) return false
+        
+        switch (filterType) {
+          case "due":
+            // 有任何一个语境到期待学习（包括新词和复习到期的）
+            return card.contexts.some((ctx) => ctx.next_review_at <= now)
+          case "graduated":
+            // 所有语境都已掌握
+            return card.contexts.every((ctx) => ctx.review_status === "graduated")
+          default:
+            return true
+        }
+      })
     }
-    return false
-  })
+
+    // 第三步：排序
+    result = [...result].sort((a, b) => {
+      switch (sortType) {
+        case "newest":
+          return b.created_at - a.created_at
+        case "oldest":
+          return a.created_at - b.created_at
+        case "alphabetical":
+          return a.word.toLowerCase().localeCompare(b.word.toLowerCase())
+        case "due_first":
+          // 按最早到期时间排序
+          const getEarliestDue = (card: WordCard) => {
+            if (!card.contexts || card.contexts.length === 0) return Infinity
+            return Math.min(...card.contexts.map((ctx) => ctx.next_review_at))
+          }
+          return getEarliestDue(a) - getEarliestDue(b)
+        default:
+          return 0
+      }
+    })
+
+    return result
+  }, [cards, searchQuery, filterType, sortType])
+
+  // 兼容旧变量名
+  const filteredCards = filteredAndSortedCards
+
+  // 统计数据
+  const stats = useMemo(() => {
+    const now = Date.now()
+    return {
+      total: cards.length,
+      due: cards.filter((c) => c.contexts?.some((ctx) => ctx.next_review_at <= now)).length,
+      graduated: cards.filter((c) => c.contexts?.every((ctx) => ctx.review_status === "graduated")).length,
+    }
+  }, [cards])
 
   const selectedCard = cards.find((c) => c.id === selectedCardId) || filteredCards[0]
+
+  // 当切换单词时，关闭播放器
+  const handleSelectCard = (cardId: string) => {
+    setSelectedCardId(cardId)
+    setPlayingContextIndex(null) // 重置播放器状态
+  }
 
   const getFirstMeaning = (card: WordCard): string => {
     if (card.contexts && card.contexts.length > 0) {
@@ -140,15 +225,17 @@ export function VocabularyList() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-8rem)]">
       {/* Left Sidebar */}
-      <Card className="lg:col-span-4 flex flex-col h-full overflow-hidden">
+      <Card className="lg:col-span-4 flex flex-col h-full overflow-hidden min-h-0">
         <div className="p-4 border-b border-border/50 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="font-medium flex items-center gap-2">
               <BookOpen className="h-4 w-4 text-primary" />
               词库
             </h2>
-            <Badge variant="secondary" className="font-normal">{cards.length}</Badge>
+            <Badge variant="secondary" className="font-normal">{filteredCards.length}/{cards.length}</Badge>
           </div>
+          
+          {/* 搜索框 */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -158,9 +245,66 @@ export function VocabularyList() {
               className="pl-9 h-9"
             />
           </div>
+
+          {/* 筛选 Tabs */}
+          <div className="flex gap-1">
+            <Button
+              variant={filterType === "all" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 text-xs px-3 flex-1"
+              onClick={() => setFilterType("all")}
+            >
+              全部
+            </Button>
+            <Button
+              variant={filterType === "due" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 text-xs px-3 flex-1"
+              onClick={() => setFilterType("due")}
+            >
+              待学习 {stats.due > 0 && <span className="ml-1 text-primary font-medium">{stats.due}</span>}
+            </Button>
+            <Button
+              variant={filterType === "graduated" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 text-xs px-3 flex-1"
+              onClick={() => setFilterType("graduated")}
+            >
+              已掌握
+            </Button>
+          </div>
+
+          {/* 排序下拉 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 text-xs w-full justify-between">
+                <span className="flex items-center gap-1">
+                  <ArrowUpDown className="h-3 w-3" />
+                  {sortType === "newest" && "最新添加"}
+                  {sortType === "oldest" && "最早添加"}
+                  {sortType === "alphabetical" && "按字母"}
+                  {sortType === "due_first" && "待复习优先"}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[180px]">
+              <DropdownMenuItem onClick={() => setSortType("newest")}>
+                最新添加
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortType("oldest")}>
+                最早添加
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortType("alphabetical")}>
+                按字母 A-Z
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSortType("due_first")}>
+                待复习优先
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <ScrollArea className="flex-1">
-          <div className="p-2 space-y-0.5">
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="p-2 space-y-0.5 pb-8">
             {filteredCards.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 未找到相关单词
@@ -172,7 +316,7 @@ export function VocabularyList() {
                 return (
                   <div
                     key={card.id}
-                    onClick={() => setSelectedCardId(card.id)}
+                    onClick={() => handleSelectCard(card.id)}
                     className={`
                       p-3 rounded-md cursor-pointer transition-colors group
                       ${isSelected 
@@ -209,9 +353,9 @@ export function VocabularyList() {
       </Card>
 
       {/* Right Detail */}
-      <div className="lg:col-span-8 h-full flex flex-col">
+      <div className="lg:col-span-8 h-full flex flex-col min-h-0 overflow-hidden">
         {selectedCard ? (
-          <Card className="h-full flex flex-col overflow-hidden">
+          <Card className="h-full flex flex-col overflow-hidden min-h-0">
             <CardHeader className="border-b border-border/50 pb-5">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
@@ -273,8 +417,8 @@ export function VocabularyList() {
               </div>
             </CardHeader>
             
-            <ScrollArea className="flex-1">
-              <div className="p-6 space-y-6">
+            <ScrollArea className="flex-1 min-h-0">
+              <div className="p-6 space-y-6 pb-12">
                 <section className="space-y-3">
                   <h3 className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                     <BookOpen className="h-3.5 w-3.5" />
@@ -306,6 +450,8 @@ export function VocabularyList() {
                               </Badge>
                               {(() => {
                                 const youtubeLink = getYouTubeLink(context.source)
+                                const podwiseLink = getPodwiseLink(context.source)
+                                
                                 if (youtubeLink) {
                                   return (
                                     <a 
@@ -330,6 +476,26 @@ export function VocabularyList() {
                                     </a>
                                   )
                                 }
+                                
+                                if (podwiseLink) {
+                                  return (
+                                    <a 
+                                      href={podwiseLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      <Badge 
+                                        variant="outline" 
+                                        className="text-[9px] gap-1 font-normal border-border/50 hover:bg-secondary cursor-pointer"
+                                      >
+                                        <Headphones className="h-2.5 w-2.5" />
+                                        Podwise
+                                        <ExternalLink className="h-2 w-2" />
+                                      </Badge>
+                                    </a>
+                                  )
+                                }
+                                
                                 return (
                                   <Badge variant="outline" className="text-[9px] font-normal border-border/50">
                                     {getSourceLabel(context.source)}
@@ -398,6 +564,45 @@ export function VocabularyList() {
                             </div>
                           )}
                           
+                          {/* YouTube Player */}
+                          {isVideoSource(context.source) && (
+                            <div className="pl-3 mb-3">
+                              {playingContextIndex === index ? (
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-muted-foreground">
+                                      从 {formatTimestamp(context.source.timestamp)} 开始播放
+                                    </span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 text-xs"
+                                      onClick={() => setPlayingContextIndex(null)}
+                                    >
+                                      关闭播放器
+                                    </Button>
+                                  </div>
+                                  <div className="rounded-lg overflow-hidden border border-border/50">
+                                    <VideoPlayer
+                                      videoId={context.source.video_id}
+                                      onReady={(e) => handlePlayerReady(e, context.source as VideoSource)}
+                                    />
+                                  </div>
+                                </div>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setPlayingContextIndex(index)}
+                                  className="gap-1.5 text-xs border-red-500/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                >
+                                  <Play className="h-3 w-3" />
+                                  播放语境 ({formatTimestamp(context.source.timestamp)})
+                                </Button>
+                              )}
+                            </div>
+                          )}
+
                           {/* Meta */}
                           <div className="flex items-center gap-4 text-xs text-muted-foreground pl-3 pt-3 border-t border-border/30">
                             <span className="flex items-center gap-1">

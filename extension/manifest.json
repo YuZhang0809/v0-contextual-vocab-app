@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "ContextVocab Clipper",
+  "version": "0.1.0",
+  "description": "Clip sentences from Podwise and analyze them with ContextVocab",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://podwise.ai/*",
+    "http://localhost:3000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Save to ContextVocab"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://podwise.ai/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
+
+

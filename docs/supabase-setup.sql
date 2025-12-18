@@ -164,6 +164,41 @@ CREATE POLICY "Users can update own translations" ON video_translations
 CREATE POLICY "Users can delete own translations" ON video_translations
   FOR DELETE USING (auth.uid() = user_id);
 
+-- ============================================================
+-- 17. 创建 video_transcripts 表 (视频字幕缓存)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS video_transcripts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  video_id TEXT NOT NULL,                       -- YouTube Video ID (全局共享)
+  transcript JSONB NOT NULL DEFAULT '[]'::jsonb, -- 字幕数据 [{text, offset, duration}]
+  language TEXT DEFAULT 'en',                   -- 字幕语言
+  segment_count INT NOT NULL DEFAULT 0,         -- 字幕段落数量
+  source TEXT DEFAULT 'youtube-transcript',     -- 数据来源: youtube-transcript, transcriptapi
+  created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT,
+  updated_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT,
+  -- 每个视频一条缓存记录 (全局共享，不按用户区分)
+  UNIQUE(video_id)
+);
+
+-- 18. 创建 video_transcripts 索引
+CREATE INDEX IF NOT EXISTS idx_video_transcripts_video_id ON video_transcripts(video_id);
+
+-- 19. 启用 video_transcripts 的 RLS
+ALTER TABLE video_transcripts ENABLE ROW LEVEL SECURITY;
+
+-- 20. 创建 video_transcripts 的 RLS 策略
+-- 字幕数据可以被所有登录用户读取（全局共享）
+CREATE POLICY "Authenticated users can view transcripts" ON video_transcripts
+  FOR SELECT USING (auth.uid() IS NOT NULL);
+
+-- 任何登录用户都可以插入新的字幕缓存
+CREATE POLICY "Authenticated users can insert transcripts" ON video_transcripts
+  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+-- 任何登录用户都可以更新字幕缓存
+CREATE POLICY "Authenticated users can update transcripts" ON video_transcripts
+  FOR UPDATE USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+
 -- 完成！
 -- 
 -- ============================================================

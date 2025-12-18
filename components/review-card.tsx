@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Volume2, Eye, Lightbulb } from "lucide-react"
+import { Volume2, Eye, Lightbulb, Play, X } from "lucide-react"
 import type { ReviewGrade, ReviewMode, ReviewUnit } from "@/lib/types"
+import { isVideoSource } from "@/lib/types"
+import { VideoPlayer } from "@/components/youtube/video-player"
 import { cn } from "@/lib/utils"
 
 interface ReviewCardProps {
@@ -16,6 +18,8 @@ interface ReviewCardProps {
 
 export function ReviewCard({ unit, mode, onGrade }: ReviewCardProps) {
   const [isFlipped, setIsFlipped] = useState(false)
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false)
+  const [playerReady, setPlayerReady] = useState(false)
 
   const { card, contextIndex } = unit
 
@@ -32,7 +36,28 @@ export function ReviewCard({ unit, mode, onGrade }: ReviewCardProps) {
 
   useEffect(() => {
     setIsFlipped(false)
+    setShowVideoPlayer(false)
+    setPlayerReady(false)
   }, [card.id, contextIndex])
+
+  // 获取 YouTube 视频信息
+  const videoSource = isVideoSource(currentContext?.source) ? currentContext?.source : null
+
+  // 格式化时间戳
+  const formatTimestamp = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${String(secs).padStart(2, '0')}`
+  }
+
+  // 当播放器准备好时，跳转到指定时间并播放
+  const handlePlayerReady = useCallback((event: any) => {
+    setPlayerReady(true)
+    if (videoSource) {
+      event.target.seekTo(videoSource.timestamp, true)
+      event.target.playVideo()
+    }
+  }, [videoSource])
 
   const speakWord = useCallback(() => {
     if ("speechSynthesis" in window) {
@@ -181,6 +206,44 @@ export function ReviewCard({ unit, mode, onGrade }: ReviewCardProps) {
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="font-normal">助记</Badge>
                   <span className="text-sm text-muted-foreground">{card.mnemonics}</span>
+                </div>
+              )}
+
+              {/* YouTube Context Player */}
+              {videoSource && (
+                <div className="space-y-3">
+                  {!showVideoPlayer ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowVideoPlayer(true)}
+                      className="w-full gap-2 border-red-500/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                    >
+                      <Play className="h-4 w-4" />
+                      播放语境 ({formatTimestamp(videoSource.timestamp)})
+                    </Button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          从 {formatTimestamp(videoSource.timestamp)} 开始播放
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => setShowVideoPlayer(false)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="rounded-lg overflow-hidden border border-border/50">
+                        <VideoPlayer
+                          videoId={videoSource.video_id}
+                          onReady={handlePlayerReady}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
